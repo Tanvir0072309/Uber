@@ -34,7 +34,7 @@ Send the data as JSON in the request body.
 | `email` | String | Yes | Must be a valid email |
 | `password` | String | Yes | Minimum 6 characters |
 
-### Success Response
+### Example Success Response
 
 **Status code:** `201 Created`
 
@@ -52,7 +52,7 @@ Send the data as JSON in the request body.
 }
 ```
 
-### Error Responses
+### Example Error Response
 
 **Status code:** `400 Bad Request`
 
@@ -71,6 +71,8 @@ Returned when validation fails, such as invalid email, first name shorter than 3
   ]
 }
 ```
+
+### Other Error Response
 
 **Status code:** `500 Internal Server Error`
 
