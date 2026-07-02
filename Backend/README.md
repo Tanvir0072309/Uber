@@ -1,4 +1,53 @@
-# Backend API Documentation
+# Ubar Backend API Documentation
+
+This backend provides authentication APIs for users and captains. JWT tokens expire in `24h`.
+
+## Base URL
+
+```http
+http://localhost:3000
+```
+
+## Authentication
+
+Protected routes require a JWT token. Send it in the `Authorization` header:
+
+```http
+Authorization: Bearer jwt_token_here
+```
+
+Or send it as a cookie:
+
+```http
+token=jwt_token_here
+```
+
+## Common Error Format
+
+Validation errors return this format:
+
+```json
+{
+  "errors": [
+    {
+      "type": "field",
+      "msg": "Invalid Email",
+      "path": "email",
+      "location": "body"
+    }
+  ]
+}
+```
+
+Unauthorized requests return:
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+# User Routes
 
 ## Register User
 
@@ -10,9 +59,7 @@ Creates a new user account and returns an authentication token with the created 
 POST /users/register
 ```
 
-### Required Data
-
-Send the data as JSON in the request body.
+### Request Body
 
 ```json
 {
@@ -34,7 +81,7 @@ Send the data as JSON in the request body.
 | `email` | String | Yes | Must be a valid email |
 | `password` | String | Yes | Minimum 6 characters |
 
-### Example Success Response
+### Success Response
 
 **Status code:** `201 Created`
 
@@ -47,16 +94,17 @@ Send the data as JSON in the request body.
       "firstname": "Tanvir",
       "lastname": "Ahmed"
     },
-    "email": "tanvir@example.com"
+    "email": "tanvir@example.com",
+    "socketId": null
   }
 }
 ```
 
-### Example Error Response
+### Error Responses
 
 **Status code:** `400 Bad Request`
 
-Returned when validation fails, such as invalid email, first name shorter than 3 characters, or password shorter than 6 characters.
+Returned when validation fails.
 
 ```json
 {
@@ -71,12 +119,6 @@ Returned when validation fails, such as invalid email, first name shorter than 3
   ]
 }
 ```
-
-### Other Error Response
-
-**Status code:** `500 Internal Server Error`
-
-May be returned if user creation fails because of a server or database error.
 
 ### Example Request
 
@@ -103,9 +145,7 @@ Logs in an existing user and returns an authentication token with the user data.
 POST /users/login
 ```
 
-### Required Data
-
-Send the data as JSON in the request body.
+### Request Body
 
 ```json
 {
@@ -121,7 +161,7 @@ Send the data as JSON in the request body.
 | `email` | String | Yes | Must be a valid email |
 | `password` | String | Yes | Minimum 6 characters |
 
-### Example Success Response
+### Success Response
 
 **Status code:** `200 OK`
 
@@ -135,36 +175,20 @@ Send the data as JSON in the request body.
       "lastname": "Ahmed"
     },
     "email": "tanvir@example.com",
-    "password": "hashed_password_here"
+    "socketId": null
   }
 }
 ```
 
-### Example Validation Error Response
+### Error Responses
 
 **Status code:** `400 Bad Request`
 
-Returned when validation fails, such as invalid email or password shorter than 6 characters.
-
-```json
-{
-  "errors": [
-    {
-      "type": "field",
-      "value": "bad-email",
-      "msg": "Invalid Email",
-      "path": "email",
-      "location": "body"
-    }
-  ]
-}
-```
-
-### Example Login Error Response
+Returned when validation fails.
 
 **Status code:** `401 Unauthorized`
 
-Returned when the email does not exist.
+Returned when email or password is incorrect.
 
 ```json
 {
@@ -172,21 +196,11 @@ Returned when the email does not exist.
 }
 ```
 
-**Status code:** `401 Unauthorized`
-
-Returned when the password is incorrect.
-
 ```json
 {
   "message": "Invalid Password"
 }
 ```
-
-### Other Error Response
-
-**Status code:** `500 Internal Server Error`
-
-May be returned if login fails because of a server or database error.
 
 ### Example Request
 
@@ -209,25 +223,15 @@ Returns the logged-in user's profile data.
 GET /users/profile
 ```
 
-### Authentication Required
+### Authentication
 
-This endpoint requires a valid JWT token. Send the token using one of these methods:
+Required.
 
-```http
-Authorization: Bearer jwt_token_here
-```
-
-Or send the token in cookies:
-
-```http
-token=jwt_token_here
-```
-
-### Required Data
+### Request Body
 
 No request body is required.
 
-### Example Success Response
+### Success Response
 
 **Status code:** `200 OK`
 
@@ -239,11 +243,11 @@ No request body is required.
     "lastname": "Ahmed"
   },
   "email": "tanvir@example.com",
-  "socketId": "socket_id_here"
+  "socketId": null
 }
 ```
 
-### Example Error Response
+### Error Responses
 
 **Status code:** `401 Unauthorized`
 
@@ -254,12 +258,6 @@ Returned when the token is missing, invalid, or expired.
   "message": "Unauthorized"
 }
 ```
-
-### Other Error Response
-
-**Status code:** `500 Internal Server Error`
-
-May be returned if profile fetching fails because of a server or database error.
 
 ### Example Request
 
@@ -268,65 +266,138 @@ curl -X GET http://localhost:3000/users/profile \
   -H "Authorization: Bearer jwt_token_here"
 ```
 
-## Logout User
+# Captain Routes
 
-Logs out the current user by clearing the token cookie and adding the current token to the blacklist.
+## Register Captain
+
+Creates a new captain account with vehicle details and returns an authentication token with the created captain data.
 
 ### Endpoint
 
 ```http
-GET /users/logout
+POST /captains/register
 ```
 
-### Authentication Required
-
-This endpoint requires a valid JWT token. Send the token using one of these methods:
-
-```http
-Authorization: Bearer jwt_token_here
-```
-
-Or send the token in cookies:
-
-```http
-token=jwt_token_here
-```
-
-### Required Data
-
-No request body is required.
-
-### Example Success Response
-
-**Status code:** `200 OK`
+### Request Body
 
 ```json
 {
-  "message": "Logged Out."
+  "fullname": {
+    "firstname": "Rahul",
+    "lastname": "Sharma"
+  },
+  "email": "rahul.captain@example.com",
+  "password": "password123",
+  "vehicle": {
+    "color": "White",
+    "plate": "MH12AB1234",
+    "capacity": 4,
+    "vehicleType": "car"
+  }
 }
 ```
 
-### Example Error Response
+### Body Fields
 
-**Status code:** `401 Unauthorized`
+| Field | Type | Required | Validation |
+| --- | --- | --- | --- |
+| `fullname.firstname` | String | Yes | Minimum 3 characters |
+| `fullname.lastname` | String | No | Minimum 3 characters if provided |
+| `email` | String | Yes | Must be a valid email and unique |
+| `password` | String | Yes | Minimum 6 characters |
+| `vehicle.color` | String | Yes | Minimum 3 characters |
+| `vehicle.plate` | String | Yes | Minimum 3 characters and unique |
+| `vehicle.capacity` | Number | Yes | Minimum value `1` |
+| `vehicle.vehicleType` | String | Yes | Must be `car`, `motorcycle`, or `auto` |
 
-Returned when the token is missing, invalid, or expired.
+### Success Response
+
+**Status code:** `201 Created`
 
 ```json
 {
-  "message": "Unauthorized"
+  "token": "jwt_token_here",
+  "captain": {
+    "_id": "captain_id_here",
+    "fullname": {
+      "firstname": "Rahul",
+      "lastname": "Sharma"
+    },
+    "email": "rahul.captain@example.com",
+    "socketId": null,
+    "status": "inactive",
+    "vehicle": {
+      "color": "White",
+      "plate": "MH12AB1234",
+      "capacity": 4,
+      "vehicleType": "car"
+    },
+    "location": {
+      "lat": null,
+      "lng": null
+    },
+    "createdAt": "2026-07-02T00:00:00.000Z",
+    "updatedAt": "2026-07-02T00:00:00.000Z"
+  }
 }
 ```
 
-### Other Error Response
+### Error Responses
 
-**Status code:** `500 Internal Server Error`
+**Status code:** `400 Bad Request`
 
-May be returned if logout fails because of a server or database error.
+Returned when validation fails.
+
+```json
+{
+  "errors": [
+    {
+      "type": "field",
+      "value": "bike",
+      "msg": "Invalid vehicle type",
+      "path": "vehicle.vehicleType",
+      "location": "body"
+    }
+  ]
+}
+```
+
+**Status code:** `400 Bad Request`
+
+Returned when a captain already exists with the same email.
+
+```json
+{
+  "message": "Captain already exists with this email."
+}
+```
 
 ### Example Request
 
 ```bash
-curl -X GET http://localhost:3000/users/logout \
-  -H "Authorization: Bearer jwt_token_here"
+curl -X POST http://localhost:3000/captains/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "fullname": {
+      "firstname": "Rahul",
+      "lastname": "Sharma"
+    },
+    "email": "rahul.captain@example.com",
+    "password": "password123",
+    "vehicle": {
+      "color": "White",
+      "plate": "MH12AB1234",
+      "capacity": 4,
+      "vehicleType": "car"
+    }
+  }'
 ```
+
+## Notes
+
+- User routes are mounted under `/users`.
+- Captain routes are mounted under `/captains`.
+- JWT tokens expire after `24h`.
+- Blacklisted JWT tokens are stored with a `24h` TTL.
+- Passwords are hashed before saving.
+- Captain accounts are created with default status `inactive`.
