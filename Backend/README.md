@@ -198,3 +198,135 @@ curl -X POST http://localhost:3000/users/login \
     "password": "password123"
   }'
 ```
+
+## User Profile
+
+Returns the logged-in user's profile data.
+
+### Endpoint
+
+```http
+GET /users/profile
+```
+
+### Authentication Required
+
+This endpoint requires a valid JWT token. Send the token using one of these methods:
+
+```http
+Authorization: Bearer jwt_token_here
+```
+
+Or send the token in cookies:
+
+```http
+token=jwt_token_here
+```
+
+### Required Data
+
+No request body is required.
+
+### Example Success Response
+
+**Status code:** `200 OK`
+
+```json
+{
+  "_id": "user_id_here",
+  "fullname": {
+    "firstname": "Tanvir",
+    "lastname": "Ahmed"
+  },
+  "email": "tanvir@example.com",
+  "socketId": "socket_id_here"
+}
+```
+
+### Example Error Response
+
+**Status code:** `401 Unauthorized`
+
+Returned when the token is missing, invalid, or expired.
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+### Other Error Response
+
+**Status code:** `500 Internal Server Error`
+
+May be returned if profile fetching fails because of a server or database error.
+
+### Example Request
+
+```bash
+curl -X GET http://localhost:3000/users/profile \
+  -H "Authorization: Bearer jwt_token_here"
+```
+
+## Logout User
+
+Logs out the current user by clearing the token cookie and adding the current token to the blacklist.
+
+### Endpoint
+
+```http
+GET /users/logout
+```
+
+### Authentication Required
+
+This endpoint requires a valid JWT token. Send the token using one of these methods:
+
+```http
+Authorization: Bearer jwt_token_here
+```
+
+Or send the token in cookies:
+
+```http
+token=jwt_token_here
+```
+
+### Required Data
+
+No request body is required.
+
+### Example Success Response
+
+**Status code:** `200 OK`
+
+```json
+{
+  "message": "Logged Out."
+}
+```
+
+### Example Error Response
+
+**Status code:** `401 Unauthorized`
+
+Returned when the token is missing, invalid, or expired.
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+### Other Error Response
+
+**Status code:** `500 Internal Server Error`
+
+May be returned if logout fails because of a server or database error.
+
+### Example Request
+
+```bash
+curl -X GET http://localhost:3000/users/logout \
+  -H "Authorization: Bearer jwt_token_here"
+```
