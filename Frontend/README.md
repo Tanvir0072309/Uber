@@ -1,131 +1,74 @@
-# Ubar Frontend
+# Ubar Frontend 🚗🏍️🛺
 
-Ubar Frontend ek modern ride-booking style React application hai. Iska focus clean mobile-first experience, simple onboarding, user-friendly forms, aur user/captain dono ke liye separate polished flows par hai.
+Ubar Frontend is a modern, production-ready ride-booking web application designed with a mobile-first philosophy. Built using **React**, **Vite**, and **Tailwind CSS**, the project prioritizes an intuitive user onboarding experience, frictionless form flows, and distinct, polished journeys for both Riders and Captains (drivers).
 
-## About The App
+---
 
-Ubar ka frontend ride app experience ko simple aur familiar banata hai. Home screen par full-screen visual background, clear brand logo, aur bottom action panel diya gaya hai jisse user quickly app start kar sakta hai.
+## 🚀 Key Features
 
-Application me user aur captain dono ke liye dedicated login aur signup experiences hain. UI clean black-and-white theme follow karta hai, rounded input fields use karta hai, aur forms ko mobile screen ke hisaab se comfortable spacing ke saath design kiya gaya hai.
+* **Mobile-First Architecture:** Optimized layout structures crafted specifically for a native app feel on mobile viewports.
+* **Dual Authentication Workflows:** Tailored, isolated Login and Registration systems for both Riders and Captains.
+* **Structured Captain Onboarding:** Comprehensive data collection pipeline for driver profiles and vehicle asset registration.
+* **Visual Asset Selection:** Interactive UI cards featuring high-quality graphics for Car, Bike, and Auto selection.
+* **Inline Client-Side Validation:** Real-time form evaluation covering structural validation for names, emails, passwords, license plates, colors, and seating capacities.
+* **Dynamic Visual Aids:** Live vehicle color preview indicators that update reactively based on input strings and auto-capitalization constraints on vehicle license plate inputs.
+* **Fluid Motion & Feedback:** Enhanced user feedback loop utilizing smooth transitions, hover states, and active scale micro-interactions.
 
-## Key Features
+---
 
-- Clean and minimal ride-booking app interface
-- Mobile-first layout with full-screen home experience
-- User login and signup screens
-- Captain login and signup screens
-- Separate captain onboarding with vehicle information
-- Vehicle type selection with car, bike, and auto images
-- Form validation for name, email, password, vehicle plate, vehicle color, and capacity
-- Dynamic error messages shown near each input
-- Vehicle color preview while entering captain vehicle details
-- Auto-uppercase behavior for vehicle plate input
-- Smooth hover and active button feedback
-- Consistent logo usage across screens
-- Tailwind CSS based responsive styling
+## 🛠️ Tech Stack
 
-## User Experience
+The application is built using modern web technologies focused on performance and developer velocity:
 
-The app is designed to feel direct and lightweight. Inputs are large, readable, and easy to tap. Buttons are visually strong, with black primary actions that make the next step clear.
+* **Core Library:** [React](https://react.dev/) (Functional components with Hooks state architecture)
+* **Build Toolchain:** [Vite](https://vite.dev/) (For ultra-fast Hot Module Replacement and highly optimized production bundlings)
+* **Styling Engine:** [Tailwind CSS](https://tailwindcss.com/) (Utility-first framework for rapid responsive styling)
+* **Routing:** [React Router Dom](https://reactrouter.com/) (For fluid single-page transitions)
 
-User screens are focused on creating or accessing a rider account quickly. Captain screens include extra vehicle details while still keeping the layout simple and readable.
+---
 
-## Captain Experience
+## 📐 User Experience & Workflows
 
-Captain signup includes a richer form because captains need vehicle details. The form supports:
+### Rider Experience
+The rider experience is engineered to be lightweight and declarative. Touch targets are large and accessible to reduce accidental inputs. High-contrast primary action buttons clearly map out the flow, enabling riders to create or log into accounts with minimal cognitive overhead.
 
-- First and last name
-- Email and password
-- Vehicle type selection
-- Vehicle color
-- Plate number
-- Seating capacity
+### Captain Onboarding
+To ensure operational compliance, the Captain registration process handles richer datasets without sacrificing layout readability. The capture sequence includes:
+1. **Identity Credentials:** First name, last name, and validated contact credentials.
+2. **Vehicle Classification:** Interactive modal components for fleet tagging (Car, Bike, Auto).
+3. **Asset Properties:** Vehicle identification (Plate No.), exterior color configurations, and passenger capacity.
 
-Vehicle selection uses visual cards for car, bike, and auto, making the form easier to understand at a glance.
+---
 
-## Form Validation
+## 🔒 Business Logic & Validation Constraints
 
-The frontend includes client-side validation before form submission. It checks common mistakes like invalid email, short password, missing required fields, invalid plate number, and incorrect seating capacity.
+The client-side validation engine strictly evaluates datasets prior to form processing to prevent bad payload submissions. Beyond standard regex email validation and password entropy checks, the system enforces contextual domain rules for fleet capacity:
 
-For captain vehicles, seating capacity is checked according to selected vehicle type:
+| Vehicle Type | Capacity Constraint | UI Asset Component |
+| :--- | :--- | :--- |
+| 🏍️ **Bike** | Maximum 2 seats | Integrated Bike Illustration |
+| 🚗 **Car** | Maximum 4 seats | Integrated Car Illustration |
+| 🛺 **Auto** | Maximum 5 seats | Integrated Auto Illustration |
 
-- Bike: maximum 2 seats
-- Car: maximum 4 seats
-- Auto: maximum 5 seats
+---
 
-## Visual Design
+## 🎨 Visual Design System
 
-The interface uses a clean Uber-inspired style:
+Inspired by elite-tier global mobility applications, the frontend relies on a hyper-clean visual language:
+* **Color Palette:** Pure white canvases supplemented by rich neutral depth shades (`#000000` / `#ffffff`).
+* **Ergonomics:** Deep input fields featuring soft gray backgrounds (`bg-gray-100`) moving fluidly to crisp dark focus borders (`focus:border-black`).
+* **Layout Grid:** Sophisticated spatial distributions built on explicit microscale padding schemes for effortless readability.
 
-- White backgrounds
-- Black primary buttons
-- Soft gray input fields
-- Rounded form controls
-- Subtle shadows and transitions
-- Full-screen visual home page
-- Clear separation between rider and captain actions
+---
 
-## Tech Stack
+## 📂 Getting Started
 
-- React
-- Vite
-- React Router
-- Tailwind CSS
-- ESLint
+### Prerequisites
+Make sure you have [Node.js](https://nodejs.org/) installed on your machine.
 
-## Project Structure
+### Installation & Local Setup
 
-```text
-Frontend/
-  public/
-  src/
-    assets/
-    pages/
-    App.jsx
-    main.jsx
-    index.css
-  index.html
-  package.json
-  tailwind.config.js
-  vite.config.js
-```
-
-## Getting Started
-
-Install dependencies:
-
-```bash
-npm install
-```
-
-Start the development server:
-
-```bash
-npm run dev
-```
-
-Build for production:
-
-```bash
-npm run build
-```
-
-Preview production build:
-
-```bash
-npm run preview
-```
-
-Run linting:
-
-```bash
-npm run lint
-```
-
-## Assets
-
-The frontend includes image assets for branding, home screen visuals, and vehicle selection. These assets help the UI feel closer to a real ride-booking product instead of a plain form demo.
-
-## Current State
-
-The frontend currently focuses on layout, navigation between screens, visual design, and client-side validation. Form data is prepared and logged after successful validation, making the UI ready for future integration work.
+1. **Clone the repository:**
+   ```bash
+   git clone [https://github.com/your-username/ubar-frontend.git](https://github.com/your-username/ubar-frontend.git)
+   cd ubar-frontend
