@@ -393,6 +393,115 @@ curl -X POST http://localhost:3000/captains/register \
   }'
 ```
 
+## Login Captain
+
+Logs in an existing captain and returns an authentication token with the captain data.
+
+### Endpoint
+
+```http
+POST /captains/login
+```
+
+### Request Body
+
+```json
+{
+  "email": "rahul.captain@example.com",
+  "password": "password123"
+}
+```
+
+### Body Fields
+
+| Field | Type | Required | Validation |
+| --- | --- | --- | --- |
+| `email` | String | Yes | Must be a valid email |
+| `password` | String | Yes | Minimum 6 characters |
+
+### Success Response
+
+**Status code:** `200 OK`
+
+```json
+{
+  "token": "jwt_token_here",
+  "captain": {
+    "_id": "captain_id_here",
+    "fullname": {
+      "firstname": "Rahul",
+      "lastname": "Sharma"
+    },
+    "email": "rahul.captain@example.com",
+    "socketId": null,
+    "status": "inactive",
+    "vehicle": {
+      "color": "White",
+      "plate": "MH12AB1234",
+      "capacity": 4,
+      "vehicleType": "car"
+    },
+    "location": {
+      "lat": null,
+      "lng": null
+    },
+    "createdAt": "2026-07-02T00:00:00.000Z",
+    "updatedAt": "2026-07-02T00:00:00.000Z"
+  }
+}
+```
+
+### Error Responses
+
+**Status code:** `400 Bad Request`
+
+Returned when validation fails, such as invalid email or password shorter than 6 characters.
+
+```json
+{
+  "errors": [
+    {
+      "type": "field",
+      "value": "bad-email",
+      "msg": "Invalid Email",
+      "path": "email",
+      "location": "body"
+    }
+  ]
+}
+```
+
+**Status code:** `401 Unauthorized`
+
+Returned when the email does not exist.
+
+```json
+{
+  "message": "Invalid Email or Password."
+}
+```
+
+**Status code:** `401 Unauthorized`
+
+Returned when the password is incorrect.
+
+```json
+{
+  "message": "Invalid Password"
+}
+```
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:3000/captains/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "rahul.captain@example.com",
+    "password": "password123"
+  }'
+```
+
 ## Notes
 
 - User routes are mounted under `/users`.
