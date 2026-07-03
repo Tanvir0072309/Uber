@@ -502,6 +502,94 @@ curl -X POST http://localhost:3000/captains/login \
   }'
 ```
 
+## Captain Profile
+
+Returns the logged-in captain's profile data.
+
+### Endpoint
+
+```http
+GET /captains/profile
+```
+
+### Authentication
+
+Required.
+
+Send the captain JWT token in the `Authorization` header:
+
+```http
+Authorization: Bearer jwt_token_here
+```
+
+Or send it as a cookie:
+
+```http
+token=jwt_token_here
+```
+
+### Request Body
+
+No request body is required.
+
+### Success Response
+
+**Status code:** `200 OK`
+
+```json
+{
+  "_id": "captain_id_here",
+  "fullname": {
+    "firstname": "Rahul",
+    "lastname": "Sharma"
+  },
+  "email": "rahul.captain@example.com",
+  "socketId": null,
+  "status": "inactive",
+  "vehicle": {
+    "color": "White",
+    "plate": "MH12AB1234",
+    "capacity": 4,
+    "vehicleType": "car"
+  },
+  "location": {
+    "lat": null,
+    "lng": null
+  },
+  "createdAt": "2026-07-02T00:00:00.000Z",
+  "updatedAt": "2026-07-02T00:00:00.000Z"
+}
+```
+
+### Error Responses
+
+**Status code:** `401 Unauthorized`
+
+Returned when the token is missing, invalid, expired, or blacklisted.
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+**Status code:** `404 Not Found`
+
+Returned when the captain from the token does not exist.
+
+```json
+{
+  "message": "Captain not found."
+}
+```
+
+### Example Request
+
+```bash
+curl -X GET http://localhost:3000/captains/profile \
+  -H "Authorization: Bearer jwt_token_here"
+```
+
 ## Notes
 
 - User routes are mounted under `/users`.

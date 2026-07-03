@@ -66,3 +66,21 @@ module.exports.loginCaptain = async (req, res, next) => {
 
     res.status(200).json({ token, captain });
 };
+
+module.exports.getCaptainProfile = async (req, res, next) => {
+    try {
+
+        const captain = await captainModel.findById(req.captain._id);
+
+        if (!captain) {
+            return res.status(404).json({
+                message: 'Captain not found.'
+            });
+        }
+
+        res.status(200).json(captain);
+
+    } catch (err) {
+        next(err);
+    }
+};
