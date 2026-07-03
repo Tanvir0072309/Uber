@@ -590,6 +590,65 @@ curl -X GET http://localhost:3000/captains/profile \
   -H "Authorization: Bearer jwt_token_here"
 ```
 
+## Logout Captain
+
+Logs out the current captain by clearing the token cookie and adding the current JWT token to the blacklist.
+
+### Endpoint
+
+```http
+GET /captains/logout
+```
+
+### Authentication
+
+Required.
+
+Send the captain JWT token in the `Authorization` header:
+
+```http
+Authorization: Bearer jwt_token_here
+```
+
+Or send it as a cookie:
+
+```http
+token=jwt_token_here
+```
+
+### Request Body
+
+No request body is required.
+
+### Success Response
+
+**Status code:** `200 OK`
+
+```json
+{
+  "message": "Captain logged out successfully."
+}
+```
+
+### Error Responses
+
+**Status code:** `401 Unauthorized`
+
+Returned when the token is missing, invalid, expired, or already blacklisted.
+
+```json
+{
+  "message": "Unauthorized"
+}
+```
+
+### Example Request
+
+```bash
+curl -X GET http://localhost:3000/captains/logout \
+  -H "Authorization: Bearer jwt_token_here"
+```
+
 ## Notes
 
 - User routes are mounted under `/users`.
