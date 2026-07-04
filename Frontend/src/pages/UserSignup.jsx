@@ -1,6 +1,9 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import uberLogo from "../assets/images/uber-logo.png";
+import axios from 'axios';
+import { useContext } from "react";
+import { UserContext } from "../context/UserContext";
 
 const UserSignup = () => {
     const [firstname, setFirstname] = useState("");
@@ -8,9 +11,12 @@ const UserSignup = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
+    const navigate = useNavigate();
+
+    const { user, setUser } = useContext(UserContext);
     const [errors, setErrors] = useState({});
 
-    const submitHandler = (e) => {
+    const submitHandler = async (e) => {
         e.preventDefault();
 
         const newErrors = {};
@@ -44,7 +50,15 @@ const UserSignup = () => {
             password
         };
 
-        console.log(newUser);
+        
+
+        const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/users/register`, newUser)
+
+        if (response.status === 201) {
+            const data = response.data;
+            setUser(data.user)
+            navigate('/Home')
+        }
 
         // Reset
         setFirstname("");
@@ -90,8 +104,8 @@ const UserSignup = () => {
                                     setErrors({ ...errors, firstname: "" });
                                 }}
                                 className={`w-full rounded-2xl px-5 py-4 border outline-none transition-all duration-200 ${errors.firstname
-                                        ? "border-red-500 bg-red-50 focus:bg-red-50"
-                                        : "border-gray-200 bg-gray-100 focus:border-black focus:bg-white"
+                                    ? "border-red-500 bg-red-50 focus:bg-red-50"
+                                    : "border-gray-200 bg-gray-100 focus:border-black focus:bg-white"
                                     }`}
                             />
                             {errors.firstname && (
@@ -114,8 +128,8 @@ const UserSignup = () => {
                                     setErrors({ ...errors, lastname: "" });
                                 }}
                                 className={`w-full rounded-2xl px-5 py-4 border outline-none transition-all duration-200 ${errors.lastname
-                                        ? "border-red-500 bg-red-50 focus:bg-red-50"
-                                        : "border-gray-200 bg-gray-100 focus:border-black focus:bg-white"
+                                    ? "border-red-500 bg-red-50 focus:bg-red-50"
+                                    : "border-gray-200 bg-gray-100 focus:border-black focus:bg-white"
                                     }`}
                             />
                             {errors.lastname && (
@@ -140,8 +154,8 @@ const UserSignup = () => {
                                 setErrors({ ...errors, email: "" });
                             }}
                             className={`w-full rounded-2xl px-5 py-4 border outline-none transition-all duration-200 ${errors.email
-                                    ? "border-red-500 bg-red-50 focus:bg-red-50"
-                                    : "border-gray-200 bg-gray-100 focus:border-black focus:bg-white"
+                                ? "border-red-500 bg-red-50 focus:bg-red-50"
+                                : "border-gray-200 bg-gray-100 focus:border-black focus:bg-white"
                                 }`}
                         />
                         {errors.email && (
@@ -165,8 +179,8 @@ const UserSignup = () => {
                                 setErrors({ ...errors, password: "" });
                             }}
                             className={`w-full rounded-2xl px-5 py-4 border outline-none transition-all duration-200 ${errors.password
-                                    ? "border-red-500 bg-red-50 focus:bg-red-50"
-                                    : "border-gray-200 bg-gray-100 focus:border-black focus:bg-white"
+                                ? "border-red-500 bg-red-50 focus:bg-red-50"
+                                : "border-gray-200 bg-gray-100 focus:border-black focus:bg-white"
                                 }`}
                         />
                         {errors.password && (

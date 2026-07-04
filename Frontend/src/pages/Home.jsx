@@ -1,82 +1,122 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
-
-import uberLogo from '../assets/images/uber-logo.png';
-import uberHome from '../assets/images/ubar-home.jpg';
+import React from "react";
+import uberLogo from "../assets/images/uber-logo.png";
 
 const Home = () => {
     return (
-        <div className="relative h-screen w-full overflow-hidden">
+        <div className="min-h-screen bg-gray-100">
 
-            {/* Background Image */}
-            <img
-                src={uberHome}
-                alt="Uber Background"
-                className="absolute inset-0 h-full w-full object-cover"
-            />
+            {/* Header */}
 
-            {/* Overlay */}
-            <div className="absolute inset-0 bg-black/10"></div>
+            <div className="bg-white shadow-sm px-6 py-5 flex justify-between items-center">
 
-            {/* Logo */}
-            <div className="absolute top-5 left-5 z-20">
                 <img
                     src={uberLogo}
                     alt="Uber Logo"
                     className="w-20"
                 />
+
+                <div className="w-10 h-10 rounded-full bg-black text-white flex items-center justify-center font-semibold">
+                    T
+                </div>
+
             </div>
 
-            {/* Bottom Card */}
-            <div className="absolute bottom-0 left-0 right-0 z-20 bg-white rounded-t-3xl px-7 py-8 shadow-2xl">
+            {/* Search Section */}
 
-                <h1 className="text-[27px] font-bold text-gray-900 leading-tight">
-                    Get started with Uber
+            <div className="bg-white mt-3 rounded-t-3xl px-6 py-6">
+
+                <h1 className="text-3xl font-bold">
+                    Good Evening 👋
                 </h1>
 
-                <p className="mt-2 text-[15px] text-gray-500 leading-6">
-                    Request a ride anywhere, anytime with just a few taps.
+                <p className="text-gray-500 mt-1">
+                    Where are you going today?
                 </p>
 
-                <Link
-                    to="/UserLogin"
-                    className="
-                        mt-7
-                        flex
-                        items-center
-                        justify-center
-                        gap-3
-                        w-full
-                        bg-black
-                        text-white
-                        py-4
-                        rounded-xl
-                        text-[17px]
-                        font-semibold
-                        transition-all
-                        duration-300
-                        hover:bg-neutral-900
-                        hover:shadow-xl
-                        active:scale-95
-                    "
-                >
-                    Continue
+                <input
+                    type="text"
+                    placeholder="Search destination"
+                    className="mt-6 w-full bg-gray-100 rounded-2xl px-5 py-4 outline-none border border-gray-200 focus:border-black"
+                />
 
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-5 h-5"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={2.5}
-                    >
-                        <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            d="M13 5l7 7-7 7M5 12h15"
-                        />
-                    </svg>
-                </Link>
+            </div>
+
+            {/* Current Location */}
+
+            <div className="px-6 mt-6">
+
+                <div className="bg-white rounded-2xl p-5 shadow-sm">
+
+                    <h3 className="font-semibold text-lg">
+                        Current Location
+                    </h3>
+
+                    <p className="text-gray-500 mt-2">
+                        Tap to detect your current location
+                    </p>
+
+                </div>
+
+            </div>
+
+            {/* Recent Places */}
+
+            <div className="px-6 mt-6">
+
+                <h2 className="font-bold text-xl mb-4">
+                    Recent Places
+                </h2>
+
+                <div className="space-y-4">
+
+                    <div className="bg-white rounded-2xl p-4 shadow-sm">
+                        🏠 Home
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 shadow-sm">
+                        🏢 Office
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 shadow-sm">
+                        📍 Railway Station
+                    </div>
+
+                </div>
+
+            </div>
+
+            {/* Ride Types */}
+
+            <div className="px-6 mt-8 pb-8">
+
+                <h2 className="font-bold text-xl mb-4">
+                    Choose Your Ride
+                </h2>
+
+                <div className="grid grid-cols-3 gap-4">
+
+                    <div className="bg-white rounded-2xl p-4 text-center shadow-sm cursor-pointer hover:shadow-md duration-300">
+                        🚗
+                        <p className="mt-2 font-semibold">
+                            Uber Go
+                        </p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 text-center shadow-sm cursor-pointer hover:shadow-md duration-300">
+                        🚙
+                        <p className="mt-2 font-semibold">
+                            Premier
+                        </p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 text-center shadow-sm cursor-pointer hover:shadow-md duration-300">
+                        🛺
+                        <p className="mt-2 font-semibold">
+                            Auto
+                        </p>
+                    </div>
+
+                </div>
 
             </div>
 
