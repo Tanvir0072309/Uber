@@ -56,6 +56,7 @@ const UserSignup = () => {
 
         if (response.status === 201) {
             const data = response.data;
+            localStorage.setItem("token", data.token);
             setUser(data.user)
             navigate('/Home')
         }

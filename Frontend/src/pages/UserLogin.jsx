@@ -1,16 +1,25 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import uberLogo from "../assets/images/uber-logo.png";
+import axios from 'axios';
+import { useContext } from "react";
+import { UserContext } from "../context/UserContext";
 
 const UserLogin = () => {
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
+
     const [emailError, setEmailError] = useState("");
     const [passwordError, setPasswordError] = useState("");
 
-    const submitHandler = (e) => {
+
+    const navigate = useNavigate();
+
+    const { setUser } = useContext(UserContext);
+
+    const submitHandler = async (e) => {
         e.preventDefault();
 
         setEmailError("");
@@ -39,14 +48,28 @@ const UserLogin = () => {
         if (!isValid) return;
 
         // API Call will come here
-        console.log({
+        const newUser = {
             email: trimmedEmail,
             password,
-        });
+        };
 
+        const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/users/login`, newUser)
+
+        if (response.status === 200) {
+            const data = response.data;
+
+            localStorage.setItem("token", data.token);
+
+            setUser(data.user);
+
+            navigate("/Home");
+        }
+
+        // Optional: reset form
         setEmail("");
         setPassword("");
-    };
+
+    };   
 
     return (
         <div className="min-h-screen bg-white flex flex-col justify-between">
