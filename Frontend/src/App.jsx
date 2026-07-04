@@ -5,8 +5,17 @@ import UserLogin from './pages/UserLogin.jsx';
 import UserSignup from './pages/UserSignup.jsx';
 import CaptainLogin from './pages/CaptainLogin.jsx';
 import CaptainSingnup from './pages/CaptainSingnup.jsx';
+import { useContext } from "react";
+import { UserContext } from "./context/UserContext";
+import { CaptainContext } from "./context/CaptainContext";
 
 const App = () => {
+  const { user } = useContext(UserContext);
+  const { captain } = useContext(CaptainContext);
+
+  console.log(user);
+  console.log(captain);
+  
   return (
     <div>
       <Routes>
