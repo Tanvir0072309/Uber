@@ -4,6 +4,13 @@ const { body } = require('express-validator');
 const userController = require('../controllers/user.controller.js');
 const authMiddleware = require('../middlewares/auth.middleware');
 
+router.post('/check-email',
+    [
+    body('email').isEmail().withMessage('Invalid Email')
+],
+    userController.checkEmail
+);
+
 router.post('/register',
     [
     body('email').isEmail().withMessage('Invalid Email'),

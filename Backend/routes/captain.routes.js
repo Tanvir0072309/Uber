@@ -4,6 +4,20 @@ const { body } = require('express-validator');
 const captainController = require('../controllers/captain.controller');
 const authMiddleware = require('../middlewares/auth.middleware.js');
 
+router.post('/check-email',
+    [
+        body('email').isEmail().withMessage('Invalid Email')
+    ],
+    captainController.checkEmail
+);
+
+router.post('/check-plate',
+    [
+        body('plate').isLength({ min: 3 }).withMessage('Vehicle plate is required')
+    ],
+    captainController.checkPlate
+);
+
 router.post('/register',
     [
         body('email').isEmail().withMessage('Invalid Email'),

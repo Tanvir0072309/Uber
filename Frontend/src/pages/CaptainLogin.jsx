@@ -1,23 +1,26 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useState, useContext } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import uberLogo from "../assets/images/uber-logo.png";
+import axios from "axios";
+import { CaptainContext } from "../context/CaptainContext"; // Apne path ke hisab se check kar lena
 
 const CaptainLogin = () => {
-
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
     const [emailError, setEmailError] = useState("");
     const [passwordError, setPasswordError] = useState("");
 
-    const submitHandler = (e) => {
+    const navigate = useNavigate();
+    const { setCaptain } = useContext(CaptainContext);
+
+    const submitHandler = async (e) => {
         e.preventDefault();
 
         setEmailError("");
         setPasswordError("");
 
         let isValid = true;
-
         const trimmedEmail = email.trim();
 
         if (!trimmedEmail) {
@@ -38,10 +41,25 @@ const CaptainLogin = () => {
 
         if (!isValid) return;
 
-        console.log({
+        const loginCaptain = {
             email: trimmedEmail,
             password,
-        });
+        };
+
+        try {
+            // Captain login API endpoint
+            const response = await axios.post(`${import.meta.env.VITE_BASE_URL}/captains/login`, loginCaptain);
+
+            if (response.status === 200) {
+                const data = response.data;
+                localStorage.setItem("token", data.token); // Aap chaho to 'captain-token' bhi rakh sakte ho
+                setCaptain(data.captain);
+                navigate("/CaptainHome"); // Captain ka alag home page ho to vahan navigate karein
+            }
+        } catch (error) {
+            console.error("Captain Login Error:", error);
+            setEmailError("Invalid email or password.");
+        }
 
         setEmail("");
         setPassword("");
@@ -49,45 +67,20 @@ const CaptainLogin = () => {
 
     return (
         <div className="min-h-screen bg-white flex flex-col justify-between">
-
-            {/* Top Section */}
-
             <div>
-
                 {/* Logo */}
-
                 <div className="px-6 pt-5">
-                    <img
-                        src={uberLogo}
-                        alt="Uber Logo"
-                        className="w-20"
-                    />
+                    <img src={uberLogo} alt="Uber Logo" className="w-20" />
                 </div>
 
                 {/* Form */}
-
-                <form
-                    onSubmit={submitHandler}
-                    className="px-6 mt-8"
-                    noValidate
-                >
-
-                    <h1 className="text-3xl font-bold text-gray-900">
-                        Captain Login ...
-                    </h1>
-
-                    <p className="mt-1 text-sm text-gray-500">
-                        Login to start accepting rides.
-                    </p>
+                <form onSubmit={submitHandler} className="px-6 mt-8" noValidate>
+                    <h1 className="text-3xl font-bold text-gray-900">Captain Login ...</h1>
+                    <p className="mt-1 text-sm text-gray-500">Login to start accepting rides.</p>
 
                     {/* Email */}
-
                     <div className="mt-8">
-
-                        <label className="block mb-2 text-sm font-semibold">
-                            Email
-                        </label>
-
+                        <label className="block mb-2 text-sm font-semibold">Email</label>
                         <input
                             type="email"
                             placeholder="captain@example.com"
@@ -101,23 +94,12 @@ const CaptainLogin = () => {
                                     : "border-gray-200 bg-gray-100 focus:bg-white focus:border-black"
                                 }`}
                         />
-
-                        {emailError && (
-                            <p className="mt-2 text-sm text-red-500">
-                                {emailError}
-                            </p>
-                        )}
-
+                        {emailError && <p className="mt-2 text-sm text-red-500">{emailError}</p>}
                     </div>
 
                     {/* Password */}
-
                     <div className="mt-5">
-
-                        <label className="block mb-2 text-sm font-semibold">
-                            Password
-                        </label>
-
+                        <label className="block mb-2 text-sm font-semibold">Password</label>
                         <input
                             type="password"
                             placeholder="Enter your password"
@@ -131,98 +113,39 @@ const CaptainLogin = () => {
                                     : "border-gray-200 bg-gray-100 focus:bg-white focus:border-black"
                                 }`}
                         />
-
-                        {passwordError && (
-                            <p className="mt-2 text-sm text-red-500">
-                                {passwordError}
-                            </p>
-                        )}
-
+                        {passwordError && <p className="mt-2 text-sm text-red-500">{passwordError}</p>}
                     </div>
 
                     {/* Login Button */}
-
                     <button
                         type="submit"
-                        className="
-                            mt-7
-                            w-full
-                            rounded-2xl
-                            bg-black
-                            py-4
-                            text-lg
-                            font-semibold
-                            text-white
-                            transition-all
-                            duration-300
-                            hover:bg-neutral-900
-                            active:scale-95
-                        "
+                        className="mt-7 w-full rounded-2xl bg-black py-4 text-lg font-semibold text-white transition-all duration-300 hover:bg-neutral-900 active:scale-95"
                     >
                         Login as Captain
                     </button>
-
                 </form>
 
-                {/* Captain Signup */}
-
+                {/* Captain Signup Link */}
                 <div className="mt-6 flex items-center justify-center gap-3">
-
-                    <span className="text-sm text-gray-600">
-                        New Captain?
-                    </span>
-
+                    <span className="text-sm text-gray-600">New Captain?</span>
                     <Link
-                        to="/CaptainSingnup"
-                        className="
-                            rounded-lg
-                            border
-                            border-black
-                            px-5
-                            py-2
-                            text-sm
-                            font-semibold
-                            transition-all
-                            duration-300
-                            hover:bg-black
-                            hover:text-white
-                        "
+                        to="/CaptainSignup"
+                        className="rounded-lg border border-black px-5 py-2 text-sm font-semibold transition-all duration-300 hover:bg-black hover:text-white"
                     >
                         Sign Up
                     </Link>
-
                 </div>
-
             </div>
 
             {/* Bottom User Button */}
-
             <div className="px-6 pb-6">
-
                 <Link
                     to="/UserLogin"
-                    className="
-    flex
-    h-14
-    w-full
-    items-center
-    justify-center
-    rounded-2xl
-    bg-black
-    text-lg
-    font-semibold
-    text-white
-    transition-all
-    duration-300
-    hover:bg-neutral-900
-    active:scale-95
-"
+                    className="flex h-14 w-full items-center justify-center rounded-2xl bg-black text-lg font-semibold text-white transition-all duration-300 hover:bg-neutral-900 active:scale-95"
                 >
                     Sign In as a User
                 </Link>
-
             </div>
-
         </div>
     );
 };

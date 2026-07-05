@@ -1,6 +1,65 @@
 const captainModel = require('../models/captain.model');
 const captainService = require('../services/captain.service');
 const { validationResult } = require('express-validator');
+const blacklistTokenModel = require('../models/blacklistToken.model.js');
+
+module.exports.checkEmail = async (req, res, next) => {
+    try {
+        const errors = validationResult(req);
+
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array(), exists: false });
+        }
+
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                message: 'Email is required.',
+                exists: false
+            });
+        }
+
+        const captain = await captainModel.findOne({ email: email.trim().toLowerCase() });
+
+        return res.status(200).json({
+            exists: !!captain,
+            available: !captain,
+            message: captain ? 'Email already exists.' : 'Email is available.'
+        });
+    } catch (err) {
+        next(err);
+    }
+};
+
+module.exports.checkPlate = async (req, res, next) => {
+    try {
+        const errors = validationResult(req);
+
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array(), exists: false });
+        }
+
+        const { plate } = req.body;
+
+        if (!plate) {
+            return res.status(400).json({
+                message: 'Plate number is required.',
+                exists: false
+            });
+        }
+
+        const captain = await captainModel.findOne({ 'vehicle.plate': plate.trim().toUpperCase() });
+
+        return res.status(200).json({
+            exists: !!captain,
+            available: !captain,
+            message: captain ? 'Plate number already exists.' : 'Plate number is available.'
+        });
+    } catch (err) {
+        next(err);
+    }
+};
 
 module.exports.registerCaptain = async (req, res, next) => {
 

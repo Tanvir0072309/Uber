@@ -1,8 +1,36 @@
 const userModel = require('../models/user.model');
 const userService = require('../services/user.service');
 const { validationResult } = require('express-validator');
-const blacklistToken = require('../models/blacklistToken.model');
 const blacklistTokenModel = require('../models/blacklistToken.model');
+
+module.exports.checkEmail = async (req, res, next) => {
+    try {
+        const errors = validationResult(req);
+
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ errors: errors.array(), exists: false });
+        }
+
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({
+                message: 'Email is required.',
+                exists: false
+            });
+        }
+
+        const user = await userModel.findOne({ email: email.trim().toLowerCase() });
+
+        return res.status(200).json({
+            exists: !!user,
+            available: !user,
+            message: user ? 'Email already exists.' : 'Email is available.'
+        });
+    } catch (err) {
+        next(err);
+    }
+};
 
 module.exports.registerUser = async (req, res, next) => {
 
