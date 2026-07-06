@@ -49,6 +49,85 @@ Unauthorized requests return:
 
 # User Routes
 
+## Check User Email
+
+Checks whether a user email is already registered.
+
+### Endpoint
+
+```http
+POST /users/check-email
+```
+
+### Request Body
+
+```json
+{
+  "email": "tanvir@example.com"
+}
+```
+
+### Body Fields
+
+| Field | Type | Required | Validation |
+| --- | --- | --- | --- |
+| `email` | String | Yes | Must be a valid email |
+
+### Success Response
+
+**Status code:** `200 OK`
+
+Returned when the email already exists.
+
+```json
+{
+  "exists": true,
+  "available": false,
+  "message": "Email already exists."
+}
+```
+
+Returned when the email is available.
+
+```json
+{
+  "exists": false,
+  "available": true,
+  "message": "Email is available."
+}
+```
+
+### Error Response
+
+**Status code:** `400 Bad Request`
+
+Returned when email is missing or invalid.
+
+```json
+{
+  "errors": [
+    {
+      "type": "field",
+      "value": "bad-email",
+      "msg": "Invalid Email",
+      "path": "email",
+      "location": "body"
+    }
+  ],
+  "exists": false
+}
+```
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:3000/users/check-email \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "tanvir@example.com"
+  }'
+```
+
 ## Register User
 
 Creates a new user account and returns an authentication token with the created user data.
@@ -267,6 +346,164 @@ curl -X GET http://localhost:3000/users/profile \
 ```
 
 # Captain Routes
+
+## Check Captain Email
+
+Checks whether a captain email is already registered.
+
+### Endpoint
+
+```http
+POST /captains/check-email
+```
+
+### Request Body
+
+```json
+{
+  "email": "rahul.captain@example.com"
+}
+```
+
+### Body Fields
+
+| Field | Type | Required | Validation |
+| --- | --- | --- | --- |
+| `email` | String | Yes | Must be a valid email |
+
+### Success Response
+
+**Status code:** `200 OK`
+
+Returned when the email already exists.
+
+```json
+{
+  "exists": true,
+  "available": false,
+  "message": "Email already exists."
+}
+```
+
+Returned when the email is available.
+
+```json
+{
+  "exists": false,
+  "available": true,
+  "message": "Email is available."
+}
+```
+
+### Error Response
+
+**Status code:** `400 Bad Request`
+
+Returned when email is missing or invalid.
+
+```json
+{
+  "errors": [
+    {
+      "type": "field",
+      "value": "bad-email",
+      "msg": "Invalid Email",
+      "path": "email",
+      "location": "body"
+    }
+  ],
+  "exists": false
+}
+```
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:3000/captains/check-email \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "rahul.captain@example.com"
+  }'
+```
+
+## Check Captain Plate
+
+Checks whether a captain vehicle plate number is already registered.
+
+### Endpoint
+
+```http
+POST /captains/check-plate
+```
+
+### Request Body
+
+```json
+{
+  "plate": "MH12AB1234"
+}
+```
+
+### Body Fields
+
+| Field | Type | Required | Validation |
+| --- | --- | --- | --- |
+| `plate` | String | Yes | Minimum 3 characters |
+
+### Success Response
+
+**Status code:** `200 OK`
+
+Returned when the plate number already exists.
+
+```json
+{
+  "exists": true,
+  "available": false,
+  "message": "Plate number already exists."
+}
+```
+
+Returned when the plate number is available.
+
+```json
+{
+  "exists": false,
+  "available": true,
+  "message": "Plate number is available."
+}
+```
+
+### Error Response
+
+**Status code:** `400 Bad Request`
+
+Returned when plate number is missing or shorter than 3 characters.
+
+```json
+{
+  "errors": [
+    {
+      "type": "field",
+      "value": "MH",
+      "msg": "Vehicle plate is required",
+      "path": "plate",
+      "location": "body"
+    }
+  ],
+  "exists": false
+}
+```
+
+### Example Request
+
+```bash
+curl -X POST http://localhost:3000/captains/check-plate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "plate": "MH12AB1234"
+  }'
+```
 
 ## Register Captain
 
