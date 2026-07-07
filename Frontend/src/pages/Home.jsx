@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import maplibregl from "maplibre-gl";
 import "maplibre-gl/dist/maplibre-gl.css";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 import uberLogo from "../assets/images/uber-logo.png";
 import LocationSearchPanel from "../components/LocationSearchPanel";
 import VehicleSelectionPanel from "../components/VehicleSelectionPanel";
 import BookingConfirmationPanel from "../components/BookingConfirmationPanel";
 import RideDetailsPanel from "../components/RideDetailsPanel";
+import UserProfilePanel from "../components/UserProfilePanel"; // IMPORTED NEW PROFILE PANEL
 
 const STEP_HEIGHT = {
     search: { min: 220, expanded: () => window.innerHeight * 0.85 },
@@ -15,11 +18,19 @@ const STEP_HEIGHT = {
     "ride-active": () => window.innerHeight * 0.68,
 };
 
+const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&q=80&w=200";
+
 const Home = () => {
+    const navigate = useNavigate();
+    const token = localStorage.getItem("token");
+
+    const [user, setUser] = useState(null);
     const [pickup, setPickup] = useState("");
     const [destination, setDestination] = useState("");
     const [currentStep, setCurrentStep] = useState("search");
     const [selectedVehicle, setSelectedVehicle] = useState(null);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [avatarUrl, setAvatarUrl] = useState(DEFAULT_AVATAR);
 
     const mapContainerRef = useRef(null);
     const mapRef = useRef(null);
@@ -33,6 +44,29 @@ const Home = () => {
 
     const [panelHeight, setPanelHeight] = useState(getMinHeight());
     const [isDragging, setIsDragging] = useState(false);
+
+    // Fetch user profile on load
+    useEffect(() => {
+        if (!token) {
+            navigate("/login");
+            return;
+        }
+
+        axios.get(`${import.meta.env.VITE_BASE_URL}/users/profile`, {
+            headers: { Authorization: `Bearer ${token}` }
+        })
+            .then(res => {
+                setUser(res.data);
+                if (res.data?._id) {
+                    setAvatarUrl(`${import.meta.env.VITE_BASE_URL}/users/photo/${res.data._id}?t=${Date.now()}`);
+                }
+            })
+            .catch(err => {
+                console.error(err);
+                localStorage.removeItem("token");
+                navigate("/login");
+            });
+    }, [token, navigate]);
 
     // ---- MapLibre 3D Initialization ----
     useEffect(() => {
@@ -153,7 +187,6 @@ const Home = () => {
         dragStartHeight.current = panelHeight;
     };
 
-    // FIX 1: Event handlers standard definitions ke saath wrapper me optimized kiye
     const handleDragMove = useCallback((clientY) => {
         if (!dragStartY.current) return;
         const deltaY = dragStartY.current - clientY;
@@ -168,16 +201,14 @@ const Home = () => {
 
     const handleDragEnd = useCallback(() => {
         setIsDragging(false);
-        dragStartY.current = 0; // reset
+        dragStartY.current = 0;
         const threshold = getMinHeight() + (getMaxHeight() - getMinHeight()) / 4;
 
-        // FIX 2: Functional layout logic update standard criteria par
         setPanelHeight(currentHeight =>
             currentHeight > threshold ? getMaxHeight() : getMinHeight()
         );
     }, []);
 
-    // FIX 3: Event tracking aur render flow ko completely detach kiya panelHeight se
     useEffect(() => {
         const onMouseMove = (e) => handleDragMove(e.clientY);
         const onTouchMove = (e) => handleDragMove(e.touches[0].clientY);
@@ -207,6 +238,24 @@ const Home = () => {
         setStepHeight("search");
     };
 
+    const handleLogout = async () => {
+        try {
+            await axios.get(`${import.meta.env.VITE_BASE_URL}/users/logout`, {
+                headers: { Authorization: `Bearer ${token}` }
+            });
+        } catch (err) {
+            console.error("Logout error", err);
+        } finally {
+            localStorage.removeItem("token");
+            navigate("/login");
+        }
+    };
+
+    const handleProfileUpdated = (updatedUser) => {
+        setUser(updatedUser);
+        setAvatarUrl(`${import.meta.env.VITE_BASE_URL}/users/photo/${updatedUser._id}?t=${Date.now()}`);
+    };
+
     const isFullyExpanded = currentStep === "search" && panelHeight > getMinHeight() + 80;
     const isSearchStep = currentStep === "search";
     const isRideStep = currentStep === "ride-active" || currentStep === "booking-confirm";
@@ -223,16 +272,16 @@ const Home = () => {
                 />
                 <button
                     type="button"
-                    className="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-xl pointer-events-auto active:scale-95 transition-all"
+                    onClick={() => setIsProfileOpen(true)}
+                    className="h-10 w-10 bg-white rounded-full flex items-center justify-center shadow-xl pointer-events-auto active:scale-95 transition-all overflow-hidden border border-neutral-100"
                     aria-label="Profile"
                 >
-                    <svg className="w-5 h-5 text-neutral-800" fill="currentColor" viewBox="0 0 24 24">
-                        <path
-                            fillRule="evenodd"
-                            d="M7.5 6a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM3.751 20.105a8.25 8.25 0 0116.498 0 .75.75 0 01-.437.695A18.683 18.683 0 0112 22.5c-2.786 0-5.433-.608-7.812-1.7a.75.75 0 01-.437-.695z"
-                            clipRule="evenodd"
-                        />
-                    </svg>
+                    <img
+                        src={avatarUrl}
+                        alt="Profile Icon"
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.target.src = DEFAULT_AVATAR; }}
+                    />
                 </button>
             </header>
 
@@ -348,6 +397,25 @@ const Home = () => {
                     )}
                 </div>
             </div>
+
+            {/* DYNAMIC USER PROFILE SLIDING OVERLAY */}
+            {isProfileOpen && user && (
+                <UserProfilePanel
+                    user={user}
+                    token={token}
+                    onClose={() => setIsProfileOpen(false)}
+                    onProfileUpdated={handleProfileUpdated}
+                    onLogout={handleLogout}
+                />
+            )}
+
+            {/* Global Keyframes Hook */}
+            <style>{`
+                @keyframes popUp {
+                    from { transform: translateY(100%); opacity: 0; }
+                    to { transform: translateY(0); opacity: 1; }
+                }
+            `}</style>
         </div>
     );
 };
