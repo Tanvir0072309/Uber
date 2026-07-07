@@ -1,3 +1,6 @@
+const https = require('https');
+const http = require('http');
+
 const captainModel = require('../models/captain.model');
 const captainService = require('../services/captain.service');
 const { validationResult } = require('express-validator');
@@ -157,4 +160,75 @@ module.exports.logoutCaptain = async (req, res, next) => {
     res.status(200).json({
         message: 'Captain logged out successfully.'
     });
+};
+
+module.exports.updateCaptainProfile = async (req, res) => {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
+    }
+
+    try {
+        const updates = {};
+
+        // express-validator + multer both populate req.body for text fields
+        // sent as fullname[firstname], fullname[lastname], mobile in FormData.
+        const firstname = req.body['fullname[firstname]'] || req.body.fullname?.firstname;
+        const lastname = req.body['fullname[lastname]'] || req.body.fullname?.lastname;
+        const mobile = req.body.mobile;
+
+        if (firstname) updates['fullname.firstname'] = firstname;
+        if (lastname) updates['fullname.lastname'] = lastname;
+        if (mobile) updates.mobile = mobile;
+
+        // multer attaches the uploaded file here (see multer.middleware.js)
+        // With CloudinaryStorage, multer already uploads the file and
+        // req.file.path holds the Cloudinary secure URL (not a local disk path).
+        if (req.file) {
+            updates.profileImage = req.file.path;
+        }
+
+        const updatedCaptain = await captainModel.findByIdAndUpdate(
+            req.captain._id,
+            { $set: updates },
+            { new: true, runValidators: true }
+        );
+
+        if (!updatedCaptain) {
+            return res.status(404).json({ message: 'Captain not found.' });
+        }
+
+        // Returned directly (not wrapped), same shape as GET /captains/profile.
+        return res.status(200).json(updatedCaptain);
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: 'Something went wrong while updating profile.' });
+    }
+};
+
+// Proxies the captain's profile photo through our own server so the raw
+// Cloudinary URL is never sent to the client (not visible in Network tab,
+// page source, or Inspect Element — only this backend URL is).
+module.exports.getCaptainPhoto = async (req, res) => {
+    try {
+        const captain = await captainModel.findById(req.params.id).select('profileImage');
+
+        if (!captain || !captain.profileImage) {
+            return res.status(404).end();
+        }
+
+        const imageUrl = captain.profileImage;
+        const client = imageUrl.startsWith('https') ? https : http;
+
+        client
+            .get(imageUrl, (imgRes) => {
+                res.set('Content-Type', imgRes.headers['content-type'] || 'image/jpeg');
+                res.set('Cache-Control', 'private, max-age=300');
+                imgRes.pipe(res);
+            })
+            .on('error', () => res.status(502).end());
+    } catch (err) {
+        console.error(err);
+        res.status(404).end();
+    }
 };

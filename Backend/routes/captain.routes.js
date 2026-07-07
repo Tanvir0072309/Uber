@@ -3,6 +3,9 @@ const router = express.Router();
 const { body } = require('express-validator');
 const captainController = require('../controllers/captain.controller');
 const authMiddleware = require('../middlewares/auth.middleware.js');
+// multer.middleware.js does `module.exports = uploadCaptainPhoto`, so this
+// MUST be a plain require — not a destructured { upload } — or it's undefined.
+const uploadCaptainPhoto = require('../middlewares/multer.middleware.js');
 
 router.post('/check-email',
     [
@@ -51,9 +54,9 @@ router.post('/register',
 
 router.post('/login',
     [
-    body('email').isEmail().withMessage('Invalid Email'),
-    body('password').isLength({ min: 6 }).withMessage('Password must be atleast 6 character long')
-],
+        body('email').isEmail().withMessage('Invalid Email'),
+        body('password').isLength({ min: 6 }).withMessage('Password must be atleast 6 character long')
+    ],
     captainController.loginCaptain
 );
 
@@ -66,5 +69,18 @@ router.get('/logout',
     authMiddleware.authCaptain,
     captainController.logoutCaptain
 );
+
+router.put('/update-profile',
+    authMiddleware.authCaptain,
+    uploadCaptainPhoto.single('profileImage'),
+    [
+        body('mobile').optional({ checkFalsy: true }).isLength({ min: 7, max: 15 }).withMessage('Mobile number must be between 7 and 15 digits'),
+    ],
+    captainController.updateCaptainProfile
+);
+
+// Streams the profile photo through our server — the raw Cloudinary URL
+// is never sent to the browser, so it can't be seen via Inspect/Network tab.
+router.get('/:id/photo', captainController.getCaptainPhoto);
 
 module.exports = router;

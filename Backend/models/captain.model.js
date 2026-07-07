@@ -8,7 +8,7 @@ const captainSchema = new mongoose.Schema({
         firstname: {
             type: String,
             required: true,
-            minlength: [3,'First name must be atleast length of 3 characters']
+            minlength: [3, 'First name must be atleast length of 3 characters']
         },
         lastname: {
             type: String,
@@ -77,6 +77,16 @@ const captainSchema = new mongoose.Schema({
         lng: {
             type: Number
         }
+    },
+
+    mobile: {
+        type: String,
+        default: null,
+    },
+
+    profileImage: {
+        type: String,
+        default: null, // stores a relative path like "/uploads/captains/xyz.jpg"
     }
 
 }, {

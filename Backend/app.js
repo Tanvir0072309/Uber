@@ -22,7 +22,12 @@ app.get('/', (req, res) => {
 app.use('/users', userRoutes);
 app.use('/captains', captainRoutes);
 
-
-
+// Error handler MUST come after all routes — Express only reaches this
+// once next(err) is called from something registered before it.
+app.use((err, req, res, next) => {
+    console.error('SERVER ERROR:', err.message);
+    console.error(err.stack);
+    res.status(500).json({ message: err.message || 'Internal Server Error' });
+});
 
 module.exports = app;
