@@ -165,7 +165,7 @@ const UserProfilePanel = ({ user, token, onClose, onProfileUpdated, onLogout }) 
                         disabled={isSaving}
                         className="w-full bg-black hover:bg-neutral-950 text-white rounded-xl py-3.5 font-bold active:scale-[0.98] transition-all disabled:bg-neutral-400 text-base"
                     >
-                        {isSaving ? "Update Ho Raha Hai..." : "Profile Save Karein"}
+                        {isSaving ? "Updation Under Process..." : "Save Profile"}
                     </button>
 
                     <button

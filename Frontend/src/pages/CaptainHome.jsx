@@ -443,8 +443,7 @@ const Sidebar = ({ isOpen, onClose, activeMenu, onNavigate, captain, onLogout })
                             <div>
                                 <p className="font-semibold text-base leading-tight">{displayName || "Captain"}</p>
                                 <p className="text-xs text-emerald-400 font-medium flex items-center gap-1 mt-1">
-                                    <StarIcon className="w-3 h-3 fill-amber-400 text-amber-400" />
-                                    4.92 &middot; Uber Pro Gold
+                                    
                                 </p>
                             </div>
                         </button>
