@@ -16,8 +16,10 @@ const BackIcon = () => (
     </svg>
 );
 
-const BookingConfirmationPanel = ({ vehicle, pickup, destination, onCancel, onConfirm }) => {
-    const driver = vehicle?.driver;
+const BookingConfirmationPanel = ({ vehicle, pickup, destination, isBooking, bookingError, onCancel, onConfirm }) => {
+    const captain = vehicle?.captain;
+    const captainName = captain ? `${captain.fullname?.firstname || ""} ${captain.fullname?.lastname || ""}`.trim() : null;
+    const photoSrc = captain?._id ? `${import.meta.env.VITE_BASE_URL}/captains/${captain._id}/photo` : null;
 
     return (
         <div className="flex flex-col h-full min-h-0 animate-fade-in">
@@ -46,36 +48,54 @@ const BookingConfirmationPanel = ({ vehicle, pickup, destination, onCancel, onCo
                         />
                     </div>
                     <p className="font-semibold text-neutral-900 text-base mt-2 tracking-tight">{vehicle?.name}</p>
-                    <p className="text-xs text-emerald-600 font-medium mt-0.5">{vehicle?.time}</p>
+                    <p className="text-xs text-emerald-600 font-medium mt-0.5">
+                        {vehicle?.etaMin ? `${vehicle.etaMin} min away` : "Nearby"}
+                    </p>
                 </div>
 
+                {/* Real nearest captain preview — the ride still goes out to every
+                    online captain of this type within 500m; whoever accepts first
+                    gets it, so this may end up being a different captain. */}
                 <div className="bg-white p-4 rounded-2xl border border-neutral-100 shadow-sm mb-3">
                     <div className="flex items-center gap-3">
-                        <div className="h-11 w-11 rounded-full bg-neutral-900 text-white flex items-center justify-center text-sm font-semibold shrink-0">
-                            {driver?.name?.charAt(0) || "D"}
-                        </div>
+                        {photoSrc ? (
+                            <img
+                                src={photoSrc}
+                                alt={captainName || "Captain"}
+                                className="h-11 w-11 rounded-full object-cover shrink-0 bg-neutral-100"
+                                onError={(e) => { e.target.style.display = "none"; }}
+                            />
+                        ) : (
+                            <div className="h-11 w-11 rounded-full bg-neutral-900 text-white flex items-center justify-center text-sm font-semibold shrink-0">
+                                {captainName?.charAt(0) || "?"}
+                            </div>
+                        )}
                         <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2">
                                 <p className="text-sm font-semibold text-neutral-900 truncate">
-                                    {driver?.name || "Your driver"}
+                                    {captainName || "Nearest available captain"}
                                 </p>
-                                <span className="inline-flex items-center gap-1 text-xs text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full shrink-0">
-                                    <StarIcon />
-                                    {driver?.rating || "4.9"}
-                                </span>
+                                {captain && (
+                                    <span className="inline-flex items-center gap-1 text-xs text-neutral-600 bg-neutral-100 px-2 py-0.5 rounded-full shrink-0">
+                                        <StarIcon />
+                                        4.9
+                                    </span>
+                                )}
                             </div>
                             <p className="text-xs text-neutral-500 mt-1 truncate">
-                                {driver?.model || "Vehicle details"}
+                                {captain ? `${captain.vehicle?.color || ""} ${captain.vehicle?.vehicleType || ""}`.trim() : "Your request will go out to nearby captains"}
                             </p>
                         </div>
                     </div>
 
-                    <div className="mt-3 flex items-center justify-between rounded-xl bg-neutral-50 border border-neutral-100 px-3 py-2">
-                        <span className="text-[11px] text-neutral-500 uppercase tracking-wider">Number plate</span>
-                        <span className="text-sm font-semibold text-neutral-900 tracking-wide">
-                            {driver?.plate || "GJ 01 AB 4521"}
-                        </span>
-                    </div>
+                    {captain?.vehicle?.plate && (
+                        <div className="mt-3 flex items-center justify-between rounded-xl bg-neutral-50 border border-neutral-100 px-3 py-2">
+                            <span className="text-[11px] text-neutral-500 uppercase tracking-wider">Number plate</span>
+                            <span className="text-sm font-semibold text-neutral-900 tracking-wide">
+                                {captain.vehicle.plate}
+                            </span>
+                        </div>
+                    )}
                 </div>
 
                 <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-100 flex flex-col gap-3">
@@ -102,7 +122,9 @@ const BookingConfirmationPanel = ({ vehicle, pickup, destination, onCancel, onCo
                             <CreditCardIcon />
                         </div>
                         <div>
-                            <p className="font-semibold text-neutral-900 text-sm tracking-tight">{vehicle?.price || "Rs 0.00"}</p>
+                            <p className="font-semibold text-neutral-900 text-sm tracking-tight">
+                                {vehicle?.price ? `₹${vehicle.price}` : "—"}
+                            </p>
                             <p className="text-[10px] text-neutral-400 font-medium uppercase tracking-wider">Cash · Personal</p>
                         </div>
                     </div>
@@ -110,22 +132,30 @@ const BookingConfirmationPanel = ({ vehicle, pickup, destination, onCancel, onCo
                         Estimated fare
                     </span>
                 </div>
+
+                {bookingError && (
+                    <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs border border-red-100 font-medium">
+                        {bookingError}
+                    </div>
+                )}
             </div>
 
             <div className="flex gap-3 pt-4 shrink-0 border-t border-neutral-100 mt-2">
                 <button
                     type="button"
                     onClick={onCancel}
-                    className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 font-medium py-4 rounded-xl text-sm transition-all active:scale-[0.98] border border-neutral-200/50"
+                    disabled={isBooking}
+                    className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-900 font-medium py-4 rounded-xl text-sm transition-all active:scale-[0.98] border border-neutral-200/50 disabled:opacity-50"
                 >
                     Change
                 </button>
                 <button
                     type="button"
                     onClick={onConfirm}
-                    className="flex-[2] bg-neutral-900 hover:bg-neutral-800 text-white font-semibold py-4 rounded-xl text-sm shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all active:scale-[0.98]"
+                    disabled={isBooking}
+                    className="flex-[2] bg-neutral-900 hover:bg-neutral-800 text-white font-semibold py-4 rounded-xl text-sm shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all active:scale-[0.98] disabled:opacity-60"
                 >
-                    Book Now
+                    {isBooking ? "Booking..." : "Book Now"}
                 </button>
             </div>
         </div>

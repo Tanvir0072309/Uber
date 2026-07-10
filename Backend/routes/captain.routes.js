@@ -82,5 +82,7 @@ router.put('/update-profile',
 // Streams the profile photo through our server — the raw Cloudinary URL
 // is never sent to the browser, so it can't be seen via Inspect/Network tab.
 router.get('/:id/photo', captainController.getCaptainPhoto);
+router.post('/go-online', authMiddleware.authCaptain, captainController.goOnline);
+router.post('/go-offline', authMiddleware.authCaptain, captainController.goOffline);
 
 module.exports = router;

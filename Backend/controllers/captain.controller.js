@@ -232,3 +232,33 @@ module.exports.getCaptainPhoto = async (req, res) => {
         res.status(404).end();
     }
 };
+
+module.exports.goOnline = async (req, res, next) => {
+    try {
+        const { lat, lng } = req.body;
+
+        const update = { status: 'active' };
+        if (typeof lat === 'number' && typeof lng === 'number') {
+            update.location = { lat, lng };
+        }
+
+        const captain = await captainModel.findByIdAndUpdate(req.captain._id, update, { new: true });
+        res.status(200).json(captain);
+    } catch (err) {
+        next(err);
+    }
+};
+
+// POST /captains/go-offline
+module.exports.goOffline = async (req, res, next) => {
+    try {
+        const captain = await captainModel.findByIdAndUpdate(
+            req.captain._id,
+            { status: 'inactive' },
+            { new: true }
+        );
+        res.status(200).json(captain);
+    } catch (err) {
+        next(err);
+    }
+};

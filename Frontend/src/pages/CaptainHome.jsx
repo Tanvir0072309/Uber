@@ -1,10 +1,13 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import mapImg from "../assets/images/map.jpg";
+import { io as ioClient } from "socket.io-client";
+import maplibregl from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
 import carImg from "../assets/images/vehicles/car.png";
 import bikeImg from "../assets/images/vehicles/bike.png";
 import autoImg from "../assets/images/vehicles/auto.png";
+import { haversineKm, fetchRoute, ensureRouteLayer, setRouteOnMap, fitRouteBounds } from "../utils/route";
 
 /* =========================================================================
    AXIOS INSTANCE — talks to your real backend (routes you shared).
@@ -27,14 +30,11 @@ const vehicleImages = { car: carImg, motorcycle: bikeImg, auto: autoImg };
 /* Stock fallback photo, used until the captain uploads their own */
 const DEFAULT_AVATAR = "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&q=80&w=200";
 
-/* Photo is now served through OUR OWN backend (/captains/:id/photo), which
-   streams it from Cloudinary server-side. The real Cloudinary URL is never
-   sent to the browser, so it's not visible in Network tab / Inspect Element —
-   only our own backend URL is. */
+/* Backend stores profileImage as a relative path (e.g. "/uploads/captains/xyz.jpg") — resolve to a full URL */
 const resolveAvatar = (captain) => {
-    if (!captain?.profileImage || !captain?._id) return DEFAULT_AVATAR;
-    const base = (BASE_URL || "").replace(/\/+$/, "");
-    return `${base}/captains/${captain._id}/photo`;
+    if (!captain?.profileImage) return DEFAULT_AVATAR;
+    if (captain.profileImage.startsWith("http")) return captain.profileImage;
+    return `${BASE_URL}${captain.profileImage}`;
 };
 
 /* =========================================================================
@@ -94,7 +94,8 @@ const CardIcon = ({ className = "w-4 h-4" }) => (
 );
 const PhoneIcon = ({ className = "w-4 h-4" }) => (
     <svg className={className} fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-        <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.94.725l.548 2.2a1 1 0 01-.321.988l-1.305.98a10.582 10.582 0 004.872 4.872l.98-1.305a1 1 0 01.988-.321l2.2.548a1 1 0 01.725.94V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+        <rect x="6" y="2" width="12" height="20" rx="2.5" />
+        <line x1="11" y1="18.5" x2="13" y2="18.5" strokeLinecap="round" />
     </svg>
 );
 const NoteIcon = ({ className = "w-4 h-4" }) => (
@@ -139,54 +140,271 @@ const PencilIcon = ({ className = "w-4 h-4" }) => (
 );
 
 /* =========================================================================
-   MOCK LIVE-REQUEST FEED
-   Replace this with your socket.io "new-ride" event payloads — the UI
-   below already supports any number of simultaneous requests.
+   COPY PHONE NUMBER BUTTON — clicking copies the number to clipboard and
+   shows a small "Copied!" popup for ~1.5s instead of trying tel: (which
+   silently does nothing on desktop and never confirms the number was
+   actually usable).
    ========================================================================= */
-const MOCK_REQUESTS = [
-    {
-        id: "req-1",
-        passengerName: "Esther Berry",
-        avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&q=80&w=150",
-        paymentMethod: "ApplePay",
-        fare: "$25.00",
-        distance: "2.2 km",
-        eta: "6 min",
-        tripDistance: "6.8 km",
-        pickup: "7958 Swift Village, Apt. 43",
-        destination: "105 William St, Chicago, US",
-        notes: "Please arrive near the main entrance gate.",
-        orderId: "#123456",
-    },
-    {
-        id: "req-2",
-        passengerName: "Daniel Cole",
-        avatar: "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&q=80&w=150",
-        paymentMethod: "Cash",
-        fare: "$14.50",
-        distance: "1.1 km",
-        eta: "3 min",
-        tripDistance: "3.4 km",
-        pickup: "22 Baker Street",
-        destination: "Lincoln Park Zoo",
-        notes: "",
-        orderId: "#123457",
-    },
-    {
-        id: "req-3",
-        passengerName: "Priya Nair",
-        avatar: "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&q=80&w=150",
-        paymentMethod: "Card",
-        fare: "$32.75",
-        distance: "4.6 km",
-        eta: "11 min",
-        tripDistance: "9.2 km",
-        pickup: "Millennium Park",
-        destination: "O'Hare Terminal 2",
-        notes: "Carrying two large bags.",
-        orderId: "#123458",
-    },
-];
+const CopyPhoneButton = ({ mobile }) => {
+    const [copied, setCopied] = useState(false);
+
+    if (!mobile) return null;
+
+    const handleCopy = async (e) => {
+        e.stopPropagation();
+        try {
+            await navigator.clipboard.writeText(mobile);
+        } catch {
+            const el = document.createElement("textarea");
+            el.value = mobile;
+            document.body.appendChild(el);
+            el.select();
+            document.execCommand("copy");
+            document.body.removeChild(el);
+        }
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+    };
+
+    return (
+        <div className="relative shrink-0">
+            <button
+                type="button"
+                onClick={handleCopy}
+                className="h-11 w-11 rounded-full bg-black hover:bg-neutral-800 text-white flex items-center justify-center shadow-lg shadow-black/25 active:scale-95 transition-all"
+                aria-label="Copy passenger number"
+            >
+                <PhoneIcon className="w-4 h-4" />
+            </button>
+            {copied && (
+                <div className="absolute -top-9 right-0 bg-black text-white text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-lg whitespace-nowrap animate-fade-in">
+                    Number copied!
+                </div>
+            )}
+        </div>
+    );
+};
+
+/* =========================================================================
+   LIVE REQUEST MAPPER
+   Converts the backend's real `new-ride` socket payload —
+   { _id, pickup, destination, fare, distance, duration, user:{fullname} } —
+   into the shape the request cards render. No more mock data: requests
+   only ever appear here because a real user booked a ride and this
+   captain was inside their 500m radius.
+   ========================================================================= */
+const mapRideEventToRequest = (data) => ({
+    id: data._id,
+    orderId: `#${String(data._id || "").slice(-6).toUpperCase()}`,
+    passengerName: `${data.user?.fullname?.firstname || "Passenger"} ${data.user?.fullname?.lastname || ""}`.trim(),
+    // BUG FIX: proxy route is registered as /users/photo/:id (same pattern
+    // already used in Home.jsx for the logged-in user's own avatar), not
+    // /users/:id/photo — using the wrong order 404'd silently and the
+    // <img> fell through onError, so the passenger photo never showed.
+    avatar: data.user?._id ? `${BASE_URL}/users/photo/${data.user._id}` : DEFAULT_AVATAR,
+    // Passenger's mobile — needed for the Call/Copy button below.
+    passengerMobile: data.user?.mobile || null,
+    paymentMethod: "Cash",
+    fare: `₹${data.fare}`,
+    fareValue: data.fare,
+    distance: `${data.distance} km`,
+    eta: `${data.duration} min`,
+    pickup: data.pickup,
+    destination: data.destination,
+    pickupCoords: data.pickupCoords,
+    destinationCoords: data.destinationCoords,
+    notes: "",
+});
+
+/* =========================================================================
+   LIVE MAP — same OpenFreeMap/MapLibre 3D style as Home.jsx, but here it
+   just tracks and displays the captain's own live position while online.
+   ========================================================================= */
+const DEFAULT_CENTER = [72.8634, 22.6916]; // fallback until first GPS fix arrives
+
+const CaptainLiveMap = ({ isOnline, onLocationChange, targetCoords, onStats }) => {
+    const mapContainerRef = useRef(null);
+    const mapRef = useRef(null);
+    const markerRef = useRef(null);
+    const targetMarkerRef = useRef(null);
+    const hasCenteredRef = useRef(false);
+    const watchIdRef = useRef(null);
+    const lastFixRef = useRef(null); // { lat, lng, ts } — for speed calc
+    const lastRouteFetchRef = useRef(0);
+
+    // ---- Map init (same 3D-buildings setup as Home.jsx) ----
+    useEffect(() => {
+        if (mapRef.current) return;
+
+        const map = new maplibregl.Map({
+            container: mapContainerRef.current,
+            style: "https://tiles.openfreemap.org/styles/liberty",
+            center: DEFAULT_CENTER,
+            zoom: 15,
+            pitch: 55,
+            bearing: -10,
+            attributionControl: false,
+        });
+
+        map.on("load", () => {
+            const layers = map.getStyle().layers;
+            let labelLayerId;
+            for (let i = 0; i < layers.length; i++) {
+                if (layers[i].type === "symbol" && layers[i].layout["text-field"]) {
+                    labelLayerId = layers[i].id;
+                    break;
+                }
+            }
+            map.addLayer(
+                {
+                    id: "3d-buildings",
+                    source: "openmaptiles",
+                    "source-layer": "building",
+                    type: "fill-extrusion",
+                    minzoom: 13,
+                    paint: {
+                        "fill-extrusion-color": "#e3e3e3",
+                        "fill-extrusion-height": ["interpolate", ["linear"], ["zoom"], 13, 0, 14.5, ["get", "render_height"]],
+                        "fill-extrusion-base": ["interpolate", ["linear"], ["zoom"], 13, 0, 14.5, ["get", "render_min_height"]],
+                        "fill-extrusion-opacity": 0.85,
+                    },
+                },
+                labelLayerId
+            );
+
+            ensureRouteLayer(map, { color: "#000000", width: 5 }); // black route line
+        });
+
+        // Black dot + white ring + soft pulse — the captain's own live position.
+        const el = document.createElement("div");
+        el.style.width = "22px";
+        el.style.height = "22px";
+        el.style.borderRadius = "50%";
+        el.style.background = "#000";
+        el.style.border = "3px solid #fff";
+        el.style.boxShadow = "0 0 0 6px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.35)";
+
+        markerRef.current = new maplibregl.Marker({ element: el }).setLngLat(DEFAULT_CENTER).addTo(map);
+        mapRef.current = map;
+
+        return () => {
+            map.remove();
+            mapRef.current = null;
+        };
+    }, []);
+
+    // ---- Live geolocation tracking — only while online ----
+    useEffect(() => {
+        if (!isOnline) {
+            if (watchIdRef.current !== null) {
+                navigator.geolocation.clearWatch(watchIdRef.current);
+                watchIdRef.current = null;
+            }
+            return;
+        }
+
+        if (!navigator.geolocation) {
+            console.warn("Geolocation is not supported by this browser.");
+            return;
+        }
+
+        watchIdRef.current = navigator.geolocation.watchPosition(
+            (pos) => {
+                const { latitude, longitude } = pos.coords;
+                const here = { lat: latitude, lng: longitude };
+
+                if (markerRef.current) markerRef.current.setLngLat([longitude, latitude]);
+
+                if (mapRef.current && !hasCenteredRef.current) {
+                    mapRef.current.flyTo({ center: [longitude, latitude], zoom: 16, duration: 800 });
+                    hasCenteredRef.current = true;
+                }
+
+                onLocationChange?.(latitude, longitude);
+
+                // ---- Remaining distance to pickup/destination + speed ----
+                if (targetCoords) {
+                    const remainingKm = haversineKm(here, targetCoords);
+
+                    const now = Date.now();
+                    let speedKmh = null;
+                    const last = lastFixRef.current;
+                    if (last) {
+                        const hours = (now - last.ts) / 3600000;
+                        const km = haversineKm(last, here);
+                        if (hours > 0.0005 && km != null) {
+                            const kmh = km / hours;
+                            if (kmh < 150) speedKmh = kmh;
+                        }
+                    }
+                    lastFixRef.current = { ...here, ts: now };
+                    onStats?.({ remainingKm, speedKmh });
+
+                    // Target marker (pickup/destination pin)
+                    if (mapRef.current) {
+                        if (!targetMarkerRef.current) {
+                            const el = document.createElement("div");
+                            el.style.width = "16px";
+                            el.style.height = "16px";
+                            el.style.borderRadius = "3px";
+                            el.style.background = "#000000";
+                            el.style.border = "2px solid #fff";
+                            el.style.boxShadow = "0 2px 6px rgba(0,0,0,0.35)";
+                            targetMarkerRef.current = new maplibregl.Marker({ element: el })
+                                .setLngLat([targetCoords.lng, targetCoords.lat])
+                                .addTo(mapRef.current);
+                        } else {
+                            targetMarkerRef.current.setLngLat([targetCoords.lng, targetCoords.lat]);
+                        }
+                    }
+
+                    // Real road route, throttled to ~every 8s.
+                    if (now - lastRouteFetchRef.current > 8000) {
+                        lastRouteFetchRef.current = now;
+                        fetchRoute(here, targetCoords).then((route) => {
+                            if (!route || !mapRef.current) return;
+                            setRouteOnMap(mapRef.current, route.geometry);
+                            fitRouteBounds(mapRef.current, route.geometry, maplibregl);
+                            onStats?.({ remainingKm: route.distanceKm, speedKmh });
+                        });
+                    }
+                } else if (targetMarkerRef.current) {
+                    targetMarkerRef.current.remove();
+                    targetMarkerRef.current = null;
+                    if (mapRef.current) setRouteOnMap(mapRef.current, null);
+                    lastRouteFetchRef.current = 0;
+                }
+            },
+            (err) => console.error("Geolocation error:", err),
+            { enableHighAccuracy: true, maximumAge: 5000, timeout: 15000 }
+        );
+
+        return () => {
+            if (watchIdRef.current !== null) {
+                navigator.geolocation.clearWatch(watchIdRef.current);
+                watchIdRef.current = null;
+            }
+        };
+    }, [isOnline, onLocationChange, targetCoords, onStats]);
+
+    return (
+        <div className="absolute inset-0 h-full w-full z-0 bg-neutral-200">
+            <div
+                ref={mapContainerRef}
+                className="w-full h-full transition-all duration-500"
+                style={{ filter: isOnline ? "none" : "brightness(0.75) grayscale(0.7)" }}
+            />
+            {!isOnline && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/45 z-10 pointer-events-none">
+                    <div className="bg-white text-black font-medium text-sm px-6 py-4 rounded-2xl shadow-xl text-center max-w-xs mx-4">
+                        <p className="text-base font-bold mb-1">You're offline</p>
+                        <p className="text-xs text-neutral-500">Go online to start sharing your live location and receiving ride requests nearby.</p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
 
 /* =========================================================================
    SIDEBAR
@@ -246,12 +464,13 @@ const Sidebar = ({ isOpen, onClose, activeMenu, onNavigate, captain, onLogout })
                     </nav>
                 </div>
 
-                <div className="p-4 border-t border-neutral-100">
+                <div className="p-3 border-t border-neutral-100">
                     <button
+                        type="button"
                         onClick={onLogout}
-                        className="w-full flex items-center justify-center gap-2 text-red-500 font-bold py-3.5 rounded-2xl bg-neutral-50 text-sm active:scale-[0.98] transition-all"
+                        className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-sm font-semibold text-red-500 hover:bg-red-50 transition-all"
                     >
-                        <LogoutIcon className="w-4 h-4" />
+                        <LogoutIcon className="w-5 h-5" />
                         Log Out
                     </button>
                 </div>
@@ -367,7 +586,7 @@ const SwipeableRequestCard = ({ request, stackIndex, isExpanded, setIsExpanded, 
         >
             {/* Swipe direction glows */}
             {!isExpanded && acceptGlow > 0 && (
-                <div className="absolute inset-0 rounded-t-3xl md:rounded-3xl bg-neutral-900 pointer-events-none" style={{ opacity: acceptGlow * 0.12 }} />
+                <div className="absolute inset-0 rounded-t-3xl md:rounded-3xl bg-emerald-500 pointer-events-none" style={{ opacity: acceptGlow * 0.12 }} />
             )}
             {!isExpanded && declineGlow > 0 && (
                 <div className="absolute inset-0 rounded-t-3xl md:rounded-3xl bg-red-500 pointer-events-none" style={{ opacity: declineGlow * 0.12 }} />
@@ -394,7 +613,7 @@ const SwipeableRequestCard = ({ request, stackIndex, isExpanded, setIsExpanded, 
                     <div className="flex items-start justify-between pr-8">
                         <div className="flex items-center gap-3.5">
                             <div className="relative shrink-0">
-                                <img src={request.avatar} alt="" className="w-14 h-14 rounded-full object-cover" />
+                                <img src={request.avatar} alt="" className="w-14 h-14 rounded-full object-cover bg-neutral-200" onError={(e) => { e.target.src = DEFAULT_AVATAR; }} />
                                 <div className="absolute -bottom-1 -right-1 bg-black text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 border-2 border-white">
                                     <span>4.9</span>
                                     <StarIcon className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
@@ -450,7 +669,7 @@ const SwipeableRequestCard = ({ request, stackIndex, isExpanded, setIsExpanded, 
 
                         <div className="flex items-center justify-between bg-neutral-50 p-4 rounded-2xl text-sm">
                             <div className="flex items-center gap-3">
-                                <img src={request.avatar} alt="" className="w-12 h-12 rounded-full object-cover" />
+                                <img src={request.avatar} alt="" className="w-12 h-12 rounded-full object-cover bg-neutral-200" onError={(e) => { e.target.src = DEFAULT_AVATAR; }} />
                                 <div>
                                     <p className="text-neutral-400 text-xs font-medium">Passenger</p>
                                     <p className="font-bold text-black text-base flex items-center gap-1">
@@ -543,10 +762,15 @@ const RequestStack = ({ requests, isExpanded, setIsExpanded, onAccept, onDecline
 );
 
 /* =========================================================================
-   ACCEPTED RIDE — FULL DETAIL SECTION (not a floating card anymore).
-   Opens as a proper full-screen page over the map, shows every trip
-   detail (passenger, route, notes, earnings), and ends with a single
-   Navigate action pinned at the bottom. Black / white theme only.
+   ACCEPTED RIDE SCREEN — same shape as your reference screenshot
+   (map + passenger card + trip stat row), restyled in the app's own
+   black / white / green theme instead of the yellow reference card.
+   ========================================================================= */
+/* =========================================================================
+   ACCEPTED RIDE — FULL DETAIL SECTION (not a floating card). Opens as a
+   proper full-screen page over the live map right after accepting, shows
+   every trip detail (real passenger, real route, fare), and ends with a
+   single Navigate action pinned at the bottom.
    ========================================================================= */
 const AcceptedRideDetails = ({ ride, onCancel, onNavigate }) => (
     <div className="absolute inset-0 z-40 bg-white flex flex-col animate-[popUp_0.35s_ease-out]">
@@ -561,21 +785,23 @@ const AcceptedRideDetails = ({ ride, onCancel, onNavigate }) => (
         </div>
 
         <div className="flex-1 overflow-y-auto px-5 pt-5 pb-6 space-y-5">
-            <div className="flex items-center justify-between bg-neutral-50 p-4 rounded-2xl text-sm">
-                <div className="flex items-center gap-3">
-                    <img src={ride.avatar} alt="" className="w-12 h-12 rounded-full object-cover" />
-                    <div>
+            <div className="flex items-center justify-between bg-neutral-50 p-4 rounded-2xl text-sm gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                    <img
+                        src={ride.avatar}
+                        alt=""
+                        className="w-12 h-12 rounded-full object-cover shrink-0 bg-neutral-200"
+                        onError={(e) => { e.target.src = DEFAULT_AVATAR; }}
+                    />
+                    <div className="min-w-0">
                         <p className="text-neutral-400 text-xs font-medium">Passenger</p>
-                        <p className="font-bold text-black text-base flex items-center gap-1">
+                        <p className="font-bold text-black text-base flex items-center gap-1 truncate">
                             {ride.passengerName}
-                            <span className="flex items-center gap-0.5 text-xs font-bold text-neutral-500 ml-1"><StarIcon className="w-3 h-3 fill-amber-400 text-amber-400" /> 4.9</span>
+                            <span className="flex items-center gap-0.5 text-xs font-bold text-neutral-500 ml-1 shrink-0"><StarIcon className="w-3 h-3 fill-amber-400 text-amber-400" /> 4.9</span>
                         </p>
                     </div>
                 </div>
-                <div className="text-right">
-                    <p className="text-neutral-400 text-xs font-medium">Payment</p>
-                    <p className="font-bold text-neutral-800 text-base flex items-center gap-1 justify-end"><CardIcon className="w-4 h-4 text-neutral-600" />{ride.paymentMethod}</p>
-                </div>
+                <CopyPhoneButton mobile={ride.passengerMobile} />
             </div>
 
             <div className="space-y-2.5">
@@ -598,6 +824,11 @@ const AcceptedRideDetails = ({ ride, onCancel, onNavigate }) => (
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div className="flex items-center justify-between px-1 -mt-2">
+                <p className="text-xs text-neutral-400 font-medium">Payment</p>
+                <p className="font-bold text-neutral-800 text-sm flex items-center gap-1"><CardIcon className="w-4 h-4 text-neutral-600" />{ride.paymentMethod}</p>
             </div>
 
             {ride.notes && (
@@ -633,74 +864,143 @@ const AcceptedRideDetails = ({ ride, onCancel, onNavigate }) => (
 );
 
 /* =========================================================================
-   NAVIGATION BAR — bottom-of-page live tracking strip shown once the
-   captain hits "Navigate". Two phases:
-     "pickup"  -> heading to the passenger: speed, distance to passenger,
-                  which passenger-number today, today's total earnings,
-                  Picked Passenger / Cancel Ride buttons.
-     "dropoff" -> passenger picked up: speed, distance left on this ride,
-                  this ride's fare, which ride-number today.
-   Speed/distance here are simulated locally — swap in real GPS/live
-   telemetry whenever that's wired up.
+   NAVIGATION BAR — small bottom-of-screen live tracking strip shown once
+   the captain hits "Navigate". Sits over the real live map (route/GPS
+   marker already rendered by CaptainLiveMap behind it). Two phases,
+   driven by the REAL ride.status from the backend:
+     "pickup"  (ride.status === "accepted") -> heading to the passenger:
+                real live speed, real remaining km to pickup,
+                "Picked Passenger" / "Cancel Ride" buttons.
+     "dropoff" (ride.status === "ongoing")  -> passenger picked up:
+                real live speed, real remaining km to drop-off,
+                "Complete Ride" button.
+   remainingKm / speedKmh come straight from CaptainLiveMap's GPS watch
+   (via onStats), same live telemetry used elsewhere in this file.
    ========================================================================= */
-const NavigationBar = ({ phase, ride, speed, distanceKm, rideNumberToday, todaysEarnings, onPickedPassenger, onCancelRide, onCompleteRide }) => (
-    <div className="absolute bottom-0 left-0 w-full z-40 bg-white rounded-t-3xl shadow-[0_-10px_36px_rgba(0,0,0,0.16)] px-5 pt-4 pb-5 animate-[popUp_0.35s_ease-out]">
-        <div className="w-full flex justify-center mb-3">
-            <div className="w-10 h-1 bg-neutral-200 rounded-full" />
-        </div>
+const NavigationBar = ({ ride, remainingKm, speedKmh, isUpdating, onPickedPassenger, onCancelRide, onCompleteRide }) => {
+    const phase = ride.status === "ongoing" ? "dropoff" : "pickup";
 
-        <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-                <img src={ride.avatar} alt="" className="w-11 h-11 rounded-full object-cover" />
-                <div>
-                    <p className="font-bold text-black text-sm leading-tight">{ride.passengerName}</p>
-                    <p className="text-[11px] font-semibold text-neutral-400 mt-0.5">
-                        {phase === "pickup" ? "Heading to passenger" : "Heading to drop-off"}
-                    </p>
+    return (
+        <div className="absolute bottom-0 left-0 w-full z-40 bg-white rounded-t-3xl shadow-[0_-10px_36px_rgba(0,0,0,0.16)] px-5 pt-4 pb-5 animate-[popUp_0.35s_ease-out]">
+            <div className="w-full flex justify-center mb-3">
+                <div className="w-10 h-1 bg-neutral-200 rounded-full" />
+            </div>
+
+            <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                    <img
+                        src={ride.avatar}
+                        alt=""
+                        className="w-11 h-11 rounded-full object-cover shrink-0 bg-neutral-200"
+                        onError={(e) => { e.target.src = DEFAULT_AVATAR; }}
+                    />
+                    <div className="min-w-0">
+                        <p className="font-bold text-black text-sm leading-tight truncate">{ride.passengerName}</p>
+                        <p className="text-[11px] font-semibold text-neutral-400 mt-0.5">
+                            {phase === "pickup" ? "Heading to passenger" : "Heading to drop-off"}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                    <CopyPhoneButton mobile={ride.passengerMobile} />
+                    <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2.5 py-1 rounded-full uppercase tracking-wide">
+                        {ride.orderId}
+                    </span>
                 </div>
             </div>
-            <span className="text-[10px] font-bold text-neutral-500 bg-neutral-100 px-2.5 py-1 rounded-full uppercase tracking-wide">
-                {phase === "pickup" ? `Passenger #${rideNumberToday} today` : `Ride #${rideNumberToday} today`}
-            </span>
-        </div>
 
-        <div className="grid grid-cols-3 gap-2 mt-4">
-            <div className="bg-neutral-50 rounded-2xl py-3 text-center">
-                <p className="text-lg font-black text-black">{speed}</p>
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide mt-0.5">KM/H</p>
+            <div className="grid grid-cols-3 gap-2 mt-4">
+                <div className="bg-neutral-50 rounded-2xl py-3 text-center">
+                    <p className="text-lg font-black text-black">{speedKmh != null ? Math.round(speedKmh) : "—"}</p>
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide mt-0.5">KM/H</p>
+                </div>
+                <div className="bg-neutral-50 rounded-2xl py-3 text-center">
+                    <p className="text-lg font-black text-black">{remainingKm != null ? remainingKm.toFixed(1) : "—"}</p>
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide mt-0.5">
+                        {phase === "pickup" ? "KM TO PASSENGER" : "KM TO DROP-OFF"}
+                    </p>
+                </div>
+                <div className="bg-neutral-50 rounded-2xl py-3 text-center">
+                    <p className="text-lg font-black text-black">{ride.fare}</p>
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide mt-0.5">THIS RIDE</p>
+                </div>
             </div>
-            <div className="bg-neutral-50 rounded-2xl py-3 text-center">
-                <p className="text-lg font-black text-black">{distanceKm}</p>
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide mt-0.5">
-                    {phase === "pickup" ? "KM TO PASSENGER" : "KM TO DROP-OFF"}
-                </p>
-            </div>
-            <div className="bg-neutral-50 rounded-2xl py-3 text-center">
-                <p className="text-lg font-black text-black">{phase === "pickup" ? todaysEarnings : ride.fare}</p>
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wide mt-0.5">
-                    {phase === "pickup" ? "EARNED TODAY" : "THIS RIDE"}
-                </p>
-            </div>
-        </div>
 
-        {phase === "pickup" ? (
-            <div className="flex gap-3 mt-4">
-                <button onClick={onCancelRide} className="px-5 bg-neutral-100 hover:bg-neutral-200 text-black font-bold py-3.5 rounded-2xl text-sm transition-all">
-                    Cancel Ride
+            {phase === "pickup" ? (
+                <div className="flex gap-3 mt-4">
+                    <button onClick={onCancelRide} disabled={isUpdating} className="px-5 bg-neutral-100 hover:bg-neutral-200 text-black font-bold py-3.5 rounded-2xl text-sm transition-all disabled:opacity-50">
+                        Cancel Ride
+                    </button>
+                    <button onClick={onPickedPassenger} disabled={isUpdating} className="flex-1 bg-black hover:bg-neutral-900 text-white font-black py-3.5 rounded-2xl text-sm tracking-wider uppercase active:scale-[0.98] transition-all disabled:opacity-60">
+                        {isUpdating ? "Confirming..." : "Picked Passenger"}
+                    </button>
+                </div>
+            ) : (
+                <button onClick={onCompleteRide} disabled={isUpdating} className="w-full mt-4 bg-black hover:bg-neutral-900 text-white font-black py-3.5 rounded-2xl text-sm tracking-wider uppercase active:scale-[0.98] transition-all disabled:opacity-60">
+                    {isUpdating ? "Completing..." : "Complete Ride"}
                 </button>
-                <button onClick={onPickedPassenger} className="flex-1 bg-black hover:bg-neutral-900 text-white font-black py-3.5 rounded-2xl text-sm tracking-wider uppercase active:scale-[0.98] transition-all">
-                    Picked Passenger
+            )}
+        </div>
+    );
+};
+
+/* =========================================================================
+   TRIP COMPLETE POPUP — on-screen confirmation shown after "Complete Ride"
+   instead of a browser alert(). Auto-dismisses, or the captain can close
+   it manually.
+   ========================================================================= */
+const TripCompleteModal = ({ info, onClose }) => {
+    useEffect(() => {
+        if (!info) return;
+        const t = setTimeout(onClose, 3500);
+        return () => clearTimeout(t);
+    }, [info, onClose]);
+
+    if (!info) return null;
+    const isError = Boolean(info.error);
+
+    return (
+        <div className="absolute inset-0 z-[60] bg-black/40 flex items-center justify-center px-6" onClick={onClose}>
+            <div
+                className="bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl animate-[popUp_0.25s_ease-out]"
+                onClick={(e) => e.stopPropagation()}
+            >
+                {isError ? (
+                    <>
+                        <div className="h-14 w-14 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-3">
+                            <CloseIcon className="w-6 h-6" />
+                        </div>
+                        <p className="font-bold text-black text-base">Something went wrong</p>
+                        <p className="text-sm text-neutral-500 mt-1">{info.error}</p>
+                    </>
+                ) : (
+                    <>
+                        <div className="h-14 w-14 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
+                            <svg className="w-7 h-7" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                            </svg>
+                        </div>
+                        <p className="font-bold text-black text-base">Trip complete!</p>
+                        {info.fare != null && (
+                            <p className="text-sm text-neutral-500 mt-1">₹{info.fare} added to your earnings</p>
+                        )}
+                    </>
+                )}
+                <button
+                    type="button"
+                    onClick={onClose}
+                    className="mt-5 w-full bg-black hover:bg-neutral-900 text-white font-bold py-3 rounded-xl text-sm transition-all active:scale-[0.98]"
+                >
+                    Done
                 </button>
             </div>
-        ) : (
-            <button onClick={onCompleteRide} className="w-full mt-4 bg-black hover:bg-neutral-900 text-white font-black py-3.5 rounded-2xl text-sm tracking-wider uppercase active:scale-[0.98] transition-all">
-                Complete Ride
-            </button>
-        )}
-    </div>
-);
+        </div>
+    );
+};
 
-
+/* =========================================================================
+   PAGE SHELL
+   ========================================================================= */
 const PageShell = ({ title, onBack, children }) => (
     <div className="h-screen w-screen bg-white overflow-y-auto">
         <div className="sticky top-0 bg-white/95 backdrop-blur-sm flex items-center gap-4 px-5 py-4 z-10 shadow-[0_1px_0_rgba(0,0,0,0.06)]">
@@ -905,45 +1205,114 @@ const ProfilePage = ({ onBack, captain, loading, onSave, onLogout }) => {
 /* =========================================================================
    EARNINGS PAGE
    ========================================================================= */
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 const EarningsPage = ({ onBack }) => {
-    const week = [
-        { day: "Mon", amount: 62 },
-        { day: "Tue", amount: 78 },
-        { day: "Wed", amount: 45 },
-        { day: "Thu", amount: 91 },
-        { day: "Fri", amount: 110 },
-        { day: "Sat", amount: 134 },
-        { day: "Sun", amount: 58 },
-    ];
-    const max = Math.max(...week.map((d) => d.amount));
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [rides, setRides] = useState([]);
+    const [totalEarnings, setTotalEarnings] = useState(0);
+    const [totalRides, setTotalRides] = useState(0);
+    const [todaysEarnings, setTodaysEarnings] = useState(0);
+
+    useEffect(() => {
+        let mounted = true;
+        api
+            .get("/rides/history/captain")
+            .then((res) => {
+                if (!mounted) return;
+                setRides(res.data?.rides || []);
+                setTotalEarnings(res.data?.totalEarnings || 0);
+                setTotalRides(res.data?.totalRides || 0);
+                setTodaysEarnings(res.data?.todaysEarnings || 0);
+            })
+            .catch((err) => {
+                console.error("Failed to load earnings:", err);
+                if (mounted) setError("Could not load earnings right now.");
+            })
+            .finally(() => { if (mounted) setLoading(false); });
+        return () => { mounted = false; };
+    }, []);
+
+    // Build a real last-7-days bar chart from actual completed rides.
+    const week = (() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const days = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(today);
+            d.setDate(d.getDate() - i);
+            days.push({ date: d, label: DAY_LABELS[d.getDay()], amount: 0 });
+        }
+        rides.forEach((r) => {
+            const rideDate = new Date(r.createdAt);
+            rideDate.setHours(0, 0, 0, 0);
+            const match = days.find((d) => d.date.getTime() === rideDate.getTime());
+            if (match) match.amount += r.fare || 0;
+        });
+        return days;
+    })();
+    const max = Math.max(1, ...week.map((d) => d.amount));
+
+    if (loading) {
+        return (
+            <PageShell title="Earnings" onBack={onBack}>
+                <div className="animate-pulse space-y-4">
+                    <div className="h-24 bg-neutral-100 rounded-2xl" />
+                    <div className="h-32 bg-neutral-100 rounded-2xl" />
+                </div>
+            </PageShell>
+        );
+    }
+
     return (
         <PageShell title="Earnings" onBack={onBack}>
+            {error && <p className="text-xs text-red-500 font-medium mb-3">{error}</p>}
+
             <div className="bg-neutral-50 rounded-2xl p-5">
-                <p className="text-xs font-bold text-neutral-400 uppercase tracking-wide">This Week</p>
-                <p className="text-4xl font-black text-black tracking-tight mt-1">$578.00</p>
-                <p className="text-xs text-neutral-400 font-medium mt-1">32 trips &bull; 41.5 hrs online</p>
+                <p className="text-xs font-bold text-neutral-400 uppercase tracking-wide">Total Earnings</p>
+                <p className="text-4xl font-black text-black tracking-tight mt-1">₹{totalEarnings}</p>
+                <p className="text-xs text-neutral-400 font-medium mt-1">
+                    {totalRides} trip{totalRides === 1 ? "" : "s"} completed &bull; ₹{todaysEarnings} today
+                </p>
             </div>
-            <div className="flex items-end justify-between gap-2 mt-6 h-32 px-1">
+
+            <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest mt-6 mb-2">Last 7 Days</p>
+            <div className="flex items-end justify-between gap-2 h-32 px-1">
                 {week.map((d) => (
-                    <div key={d.day} className="flex flex-col items-center gap-2 flex-1">
-                        <div className="w-full max-w-[26px] bg-black rounded-full" style={{ height: `${(d.amount / max) * 100}%` }} />
-                        <span className="text-[10px] font-bold text-neutral-400">{d.day}</span>
+                    <div key={d.date.toISOString()} className="flex flex-col items-center gap-2 flex-1">
+                        <div
+                            className="w-full max-w-[26px] bg-black rounded-full transition-all"
+                            style={{ height: `${Math.max(4, (d.amount / max) * 100)}%` }}
+                        />
+                        <span className="text-[10px] font-bold text-neutral-400">{d.label}</span>
                     </div>
                 ))}
             </div>
-            <div className="mt-6 space-y-2.5">
-                {[
-                    { label: "Trip Fares", value: "$498.20" },
-                    { label: "Tips", value: "$52.30" },
-                    { label: "Promotions", value: "$27.50" },
-                ].map((r) => (
-                    <div key={r.label} className="flex items-center justify-between bg-neutral-50 rounded-2xl px-4 py-3.5">
-                        <span className="text-sm font-medium text-neutral-600">{r.label}</span>
-                        <span className="text-sm font-bold text-black">{r.value}</span>
-                    </div>
-                ))}
-            </div>
-            <button className="w-full mt-6 bg-black text-white font-bold py-4 rounded-2xl text-sm active:scale-[0.98] transition-all">Cash Out</button>
+
+            <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest mt-6 mb-2">Trips</p>
+            {rides.length === 0 ? (
+                <p className="text-sm text-neutral-400 text-center py-8">No completed trips yet.</p>
+            ) : (
+                <div className="space-y-2.5">
+                    {rides.map((r) => (
+                        <div key={r._id} className="bg-neutral-50 rounded-2xl px-4 py-3.5">
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-bold text-black">
+                                    {r.user?.fullname?.firstname || "Passenger"} {r.user?.fullname?.lastname || ""}
+                                </p>
+                                <span className="text-sm font-black text-black">₹{r.fare}</span>
+                            </div>
+                            <p className="text-xs text-neutral-500 mt-1 truncate">
+                                {r.pickup} → {r.destination}
+                            </p>
+                            <p className="text-[10px] text-neutral-400 font-medium mt-1">
+                                {new Date(r.createdAt).toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                        </div>
+                    ))}
+                </div>
+            )}
         </PageShell>
     );
 };
@@ -952,28 +1321,56 @@ const EarningsPage = ({ onBack }) => {
    RIDE HISTORY PAGE
    ========================================================================= */
 const HistoryPage = ({ onBack }) => {
-    const trips = [
-        { name: "Esther Berry", date: "Today, 2:40 PM", fare: "$25.00", status: "Completed" },
-        { name: "Daniel Cole", date: "Today, 11:05 AM", fare: "$14.50", status: "Completed" },
-        { name: "Priya Nair", date: "Yesterday, 8:12 PM", fare: "$32.75", status: "Completed" },
-        { name: "Marcus Lee", date: "Yesterday, 6:03 PM", fare: "$9.00", status: "Cancelled" },
-    ];
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState("");
+    const [rides, setRides] = useState([]);
+
+    useEffect(() => {
+        let mounted = true;
+        api
+            .get("/rides/history/captain")
+            .then((res) => { if (mounted) setRides(res.data?.rides || []); })
+            .catch((err) => {
+                console.error("Failed to load ride history:", err);
+                if (mounted) setError("Could not load ride history right now.");
+            })
+            .finally(() => { if (mounted) setLoading(false); });
+        return () => { mounted = false; };
+    }, []);
+
     return (
         <PageShell title="Ride History" onBack={onBack}>
-            <div className="space-y-3">
-                {trips.map((t, i) => (
-                    <div key={i} className="bg-neutral-50 rounded-2xl p-4 flex items-center justify-between">
-                        <div>
-                            <p className="text-sm font-bold text-black">{t.name}</p>
-                            <p className="text-xs text-neutral-400 font-medium mt-1">{t.date}</p>
+            {loading ? (
+                <div className="animate-pulse space-y-3">
+                    <div className="h-20 bg-neutral-100 rounded-2xl" />
+                    <div className="h-20 bg-neutral-100 rounded-2xl" />
+                    <div className="h-20 bg-neutral-100 rounded-2xl" />
+                </div>
+            ) : error ? (
+                <p className="text-sm text-red-500 font-medium">{error}</p>
+            ) : rides.length === 0 ? (
+                <p className="text-sm text-neutral-400 text-center py-10">No completed rides yet.</p>
+            ) : (
+                <div className="space-y-3">
+                    {rides.map((r) => (
+                        <div key={r._id} className="bg-neutral-50 rounded-2xl p-4">
+                            <div className="flex items-center justify-between">
+                                <p className="text-sm font-bold text-black">
+                                    {r.user?.fullname?.firstname || "Passenger"} {r.user?.fullname?.lastname || ""}
+                                </p>
+                                <p className="text-sm font-bold text-black">₹{r.fare}</p>
+                            </div>
+                            <p className="text-xs text-neutral-500 mt-1.5 truncate">
+                                {r.pickup} → {r.destination}
+                            </p>
+                            <p className="text-[10px] text-neutral-400 font-medium mt-1.5">
+                                {new Date(r.createdAt).toLocaleString(undefined, { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                {r.distance ? ` · ${r.distance} km` : ""}
+                            </p>
                         </div>
-                        <div className="text-right">
-                            <p className="text-sm font-bold text-black">{t.fare}</p>
-                            <span className={`text-[10px] font-bold uppercase tracking-wide mt-1 inline-block ${t.status === "Completed" ? "text-emerald-600" : "text-neutral-400"}`}>{t.status}</span>
-                        </div>
-                    </div>
-                ))}
-            </div>
+                    ))}
+                </div>
+            )}
         </PageShell>
     );
 };
@@ -985,7 +1382,10 @@ const CaptainHome = () => {
     const navigate = useNavigate();
 
     // --- UI-flow state ---
-    const [isOnline, setIsOnline] = useState(true);
+    // Starts OFFLINE by default — no ride requests should ever appear until
+    // the captain explicitly goes online AND a real user books a ride that
+    // lands inside this captain's radius.
+    const [isOnline, setIsOnline] = useState(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [activeMenu, setActiveMenu] = useState("home");
     const [isExpanded, setIsExpanded] = useState(false);
@@ -994,30 +1394,21 @@ const CaptainHome = () => {
     const [captain, setCaptain] = useState(null);
     const [profileLoading, setProfileLoading] = useState(true);
 
-    // --- Ride requests: now an array, so several can float in at once ---
-    const [rideRequests, setRideRequests] = useState(MOCK_REQUESTS);
-    const [acceptedRide, setAcceptedRide] = useState(null);
+    // --- Ride requests: starts EMPTY. Every entry here came from a real
+    //     `new-ride` socket event — nothing is shown by default. ---
+    const [rideRequests, setRideRequests] = useState([]);
+    const [acceptedRide, setAcceptedRide] = useState(null); // { ...request, status: 'accepted' | 'ongoing' }
+    // Naya: accept karne ke turant baad sirf passenger details dikhte hain —
+    // map/route/live-tracking sirf tabhi shuru hota hai jab captain khud
+    // "Navigate to Passenger" par click kare.
+    const [isNavigating, setIsNavigating] = useState(false);
+    const [isUpdatingRide, setIsUpdatingRide] = useState(false);
+    const [rideStats, setRideStats] = useState({ remainingKm: null, speedKmh: null });
+    // On-screen "trip complete" popup — replaces the old alert().
+    const [completedRideInfo, setCompletedRideInfo] = useState(null); // { fare } | null
 
-    // --- Live navigation tracking, shown as the bottom bar after "Navigate" ---
-    // navPhase: null (not navigating) -> "pickup" (heading to passenger) -> "dropoff" (heading to destination)
-    const [navPhase, setNavPhase] = useState(null);
-    const [liveSpeed, setLiveSpeed] = useState(0);
-    const [liveDistanceKm, setLiveDistanceKm] = useState(0);
-    const [completedRidesToday, setCompletedRidesToday] = useState(4); // mock: 4 rides already done today
-    const [todaysEarnings, setTodaysEarnings] = useState(186.4); // mock running total
-
-    // Simulate live speed/distance while a navigation phase is active.
-    // Swap this out for real GPS telemetry when that's wired up.
-    useEffect(() => {
-        if (!navPhase) return;
-        const speedTimer = setInterval(() => {
-            setLiveSpeed(24 + Math.round(Math.random() * 28)); // 24-52 km/h
-        }, 2000);
-        const distanceTimer = setInterval(() => {
-            setLiveDistanceKm((d) => Math.max(0, +(d - 0.1).toFixed(1)));
-        }, 3000);
-        return () => { clearInterval(speedTimer); clearInterval(distanceTimer); };
-    }, [navPhase]);
+    const socketRef = useRef(null);
+    const lastLocationSentRef = useRef(0);
 
     useEffect(() => {
         let mounted = true;
@@ -1030,6 +1421,47 @@ const CaptainHome = () => {
         return () => { mounted = false; };
     }, []);
 
+    // ---- Connect to the real backend socket once we know who this captain is ----
+    useEffect(() => {
+        if (!captain?._id) return;
+
+        // BADLA: yahi wajah ho sakti hai ki Amit Patel ka socketId save nahi
+        // ho raha — pehle sirf websocket transport tha, jo kai hosts/networks
+        // par silently fail ho jaata hai. Ab polling fallback bhi hai.
+        const socket = ioClient(BASE_URL, {
+            transports: ["websocket", "polling"],
+        });
+        socketRef.current = socket;
+
+        socket.on("connect", () => {
+            console.log("[socket] connected:", socket.id);
+            socket.emit("join", { userId: captain._id, userType: "captain" });
+        });
+
+        // BADLA: naya — ab connection fail hote hi console me turant dikhega
+        socket.on("connect_error", (err) => {
+            console.error("[socket] connect_error:", err.message);
+        });
+
+        socket.on("disconnect", (reason) => {
+            console.warn("[socket] disconnected:", reason);
+        });
+
+        // A real user booked a ride and this captain was inside their 500m
+        // radius — this is the ONLY way a request card ever appears.
+        socket.on("new-ride", (data) => {
+            setRideRequests((prev) => {
+                if (prev.some((r) => r.id === data._id)) return prev; // no dupes
+                return [...prev, mapRideEventToRequest(data)];
+            });
+        });
+
+        return () => {
+            socket.disconnect();
+            socketRef.current = null;
+        };
+    }, [captain?._id]);
+
     const handleLogout = async () => {
         try {
             await api.get("/captains/logout");
@@ -1037,7 +1469,7 @@ const CaptainHome = () => {
             console.error("Logout request failed:", err);
         } finally {
             localStorage.removeItem("token");
-            navigate("/CaptainLogin");
+            navigate("/captain-login");
         }
     };
 
@@ -1062,40 +1494,125 @@ const CaptainHome = () => {
         setIsExpanded(false);
     };
 
-    const handleAccept = (request) => {
+    // Real accept: tells the backend this captain has the ride, which then
+    // notifies the passenger over their own socket ('ride-accepted').
+    const handleAccept = async (request) => {
         setRideRequests((prev) => prev.filter((r) => r.id !== request.id));
         setIsExpanded(false);
-        setAcceptedRide(request);
+        try {
+            await api.post("/rides/accept", { rideId: request.id });
+            setRideStats({ remainingKm: null, speedKmh: null });
+            setIsNavigating(false); // pehle sirf details dikhenge, map/route nahi
+            setAcceptedRide({ ...request, status: "accepted" });
+        } catch (err) {
+            console.error("Failed to accept ride:", err);
+            alert(err?.response?.data?.message || "This ride is no longer available.");
+        }
     };
 
-    // Fires when "Navigate" is tapped on the full trip-detail page — swaps
-    // that page out for the bottom tracking bar, phase "pickup".
-    const handleStartNavigation = () => {
-        setLiveSpeed(24 + Math.round(Math.random() * 28));
-        setLiveDistanceKm(parseFloat(acceptedRide?.distance) || 0);
-        setNavPhase("pickup");
+    // Captain has physically reached the pickup point — now tracking to drop-off.
+    const handleStartRide = async () => {
+        if (!acceptedRide) return;
+        setIsUpdatingRide(true);
+        try {
+            await api.post("/rides/start-ride", { rideId: acceptedRide.id });
+            setRideStats({ remainingKm: null, speedKmh: null });
+            setAcceptedRide((prev) => (prev ? { ...prev, status: "ongoing" } : prev));
+        } catch (err) {
+            console.error("Failed to start ride:", err);
+            alert(err?.response?.data?.message || "Could not start the ride. Please try again.");
+        } finally {
+            setIsUpdatingRide(false);
+        }
     };
 
-    const handlePickedPassenger = () => {
-        setLiveSpeed(24 + Math.round(Math.random() * 28));
-        setLiveDistanceKm(parseFloat(acceptedRide?.tripDistance) || 0);
-        setNavPhase("dropoff");
+    // Trip finished — this is what actually records the fare for this
+    // captain (ride.status becomes 'completed' in the DB, so it now shows
+    // up in both Earnings and Ride History).
+    const handleCompleteRide = async () => {
+        if (!acceptedRide) return;
+        setIsUpdatingRide(true);
+        try {
+            await api.post("/rides/complete-ride", { rideId: acceptedRide.id });
+            // On-screen popup instead of alert() — shown after the map/nav
+            // bar is torn down below.
+            setCompletedRideInfo({ fare: acceptedRide.fareValue ?? null });
+            setAcceptedRide(null);
+            setIsNavigating(false);
+            setRideStats({ remainingKm: null, speedKmh: null });
+        } catch (err) {
+            console.error("Failed to complete ride:", err);
+            setCompletedRideInfo({ error: err?.response?.data?.message || "Could not complete the ride. Please try again." });
+        } finally {
+            setIsUpdatingRide(false);
+        }
     };
 
-    const handleCancelRide = () => {
-        setNavPhase(null);
-        setAcceptedRide(null);
-    };
-
-    const handleCompleteRide = () => {
-        const fareValue = parseFloat(String(acceptedRide?.fare).replace(/[^0-9.]/g, "")) || 0;
-        setTodaysEarnings((prev) => +(prev + fareValue).toFixed(2));
-        setCompletedRidesToday((prev) => prev + 1);
-        setNavPhase(null);
-        setAcceptedRide(null);
+    const handleCancelAcceptedRide = async () => {
+        if (!acceptedRide) return;
+        try {
+            await api.post("/rides/cancel", { rideId: acceptedRide.id });
+        } catch (err) {
+            console.error("Failed to cancel ride:", err);
+        } finally {
+            setAcceptedRide(null);
+            setIsNavigating(false);
+            setRideStats({ remainingKm: null, speedKmh: null });
+        }
     };
 
     const goHome = () => setActiveMenu("home");
+
+    // Passenger details dekhne ke baad captain isko dabata hai — tabhi live
+    // map + pickup tak ka route dikhna shuru hota hai.
+    const handleNavigateToPassenger = () => setIsNavigating(true);
+
+    // Go online/offline against the real backend. go-online also takes an
+    // optional lat/lng for the captain's first known fix.
+    const handleToggleOnline = () => {
+        const goingOnline = !isOnline;
+        setIsOnline(goingOnline);
+
+        if (goingOnline) {
+            navigator.geolocation?.getCurrentPosition(
+                (pos) => {
+                    api.post("/captains/go-online", {
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude,
+                    }).catch((err) => console.error("go-online failed:", err));
+                },
+                () => {
+                    api.post("/captains/go-online", {}).catch((err) => console.error("go-online failed:", err));
+                }
+            );
+        } else {
+            api.post("/captains/go-offline").catch((err) => console.error("go-offline failed:", err));
+        }
+    };
+
+    // Live GPS ticks -> pushed over the socket (throttled to once/5s) so the
+    // backend's captain.model.location always has the current point.
+    // BUG FIX: this was a plain function before, so it got a brand-new
+    // reference on EVERY render. CaptainLiveMap's watchPosition effect has
+    // `onLocationChange` in its dependency array, so every re-render
+    // (including the ones triggered by live speed/distance stats while
+    // navigating) was tearing down and restarting the GPS watch — which is
+    // exactly why the map/route would get stuck instead of progressing
+    // from pickup to destination after "Picked Passenger". useCallback
+    // keeps the same reference across renders (it only changes if
+    // captain._id changes), so the watch now stays alive continuously.
+    const handleLocationChange = useCallback((lat, lng) => {
+        const now = Date.now();
+        if (now - lastLocationSentRef.current < 5000) return;
+        lastLocationSentRef.current = now;
+
+        if (socketRef.current && captain?._id) {
+            socketRef.current.emit("update-location-captain", {
+                userId: captain._id,
+                location: { lat, lng },
+            });
+        }
+    }, [captain?._id]);
 
     return (
         <>
@@ -1119,53 +1636,51 @@ const CaptainHome = () => {
                     <Header
                         onMenuClick={() => setIsSidebarOpen(true)}
                         isOnline={isOnline}
-                        onToggleOnline={() => setIsOnline(!isOnline)}
+                        onToggleOnline={handleToggleOnline}
                     />
 
-                    <div className="absolute inset-0 h-full w-full z-0 bg-neutral-200">
-                        <img
-                            src={mapImg}
-                            alt="Map"
-                            className="w-full h-full object-cover transition-all duration-500"
-                            style={{ filter: isOnline ? "none" : "brightness(0.75) grayscale(0.7)" }}
-                        />
-                        {!isOnline && (
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/45 z-10">
-                                <div className="bg-white text-black font-medium text-sm px-6 py-4 rounded-2xl shadow-xl text-center max-w-xs mx-4">
-                                    <p className="text-base font-bold mb-1">You're offline</p>
-                                    <p className="text-xs text-neutral-500">Go online to start receiving ride requests nearby.</p>
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                    <CaptainLiveMap
+                        isOnline={isOnline}
+                        onLocationChange={handleLocationChange}
+                        targetCoords={
+                            acceptedRide && isNavigating
+                                ? (acceptedRide.status === "ongoing" ? acceptedRide.destinationCoords : acceptedRide.pickupCoords)
+                                : null
+                        }
+                        onStats={setRideStats}
+                    />
 
-                    {acceptedRide && !navPhase && (
-                        <AcceptedRideDetails ride={acceptedRide} onCancel={() => setAcceptedRide(null)} onNavigate={handleStartNavigation} />
+                    {acceptedRide ? (
+                        isNavigating ? (
+                            <NavigationBar
+                                ride={acceptedRide}
+                                remainingKm={rideStats.remainingKm}
+                                speedKmh={rideStats.speedKmh}
+                                isUpdating={isUpdatingRide}
+                                onPickedPassenger={handleStartRide}
+                                onCancelRide={handleCancelAcceptedRide}
+                                onCompleteRide={handleCompleteRide}
+                            />
+                        ) : (
+                            <AcceptedRideDetails
+                                ride={acceptedRide}
+                                onCancel={handleCancelAcceptedRide}
+                                onNavigate={handleNavigateToPassenger}
+                            />
+                        )
+                    ) : (
+                        isOnline && rideRequests.length > 0 && (
+                            <RequestStack
+                                requests={rideRequests}
+                                isExpanded={isExpanded}
+                                setIsExpanded={setIsExpanded}
+                                onAccept={handleAccept}
+                                onDecline={handleDecline}
+                            />
+                        )
                     )}
 
-                    {acceptedRide && navPhase && (
-                        <NavigationBar
-                            phase={navPhase}
-                            ride={acceptedRide}
-                            speed={liveSpeed}
-                            distanceKm={liveDistanceKm}
-                            rideNumberToday={completedRidesToday + 1}
-                            todaysEarnings={`$${todaysEarnings.toFixed(2)}`}
-                            onPickedPassenger={handlePickedPassenger}
-                            onCancelRide={handleCancelRide}
-                            onCompleteRide={handleCompleteRide}
-                        />
-                    )}
-
-                    {!acceptedRide && isOnline && rideRequests.length > 0 && (
-                        <RequestStack
-                            requests={rideRequests}
-                            isExpanded={isExpanded}
-                            setIsExpanded={setIsExpanded}
-                            onAccept={handleAccept}
-                            onDecline={handleDecline}
-                        />
-                    )}
+                    <TripCompleteModal info={completedRideInfo} onClose={() => setCompletedRideInfo(null)} />
 
                     <style>{`
                         @keyframes popUp {
