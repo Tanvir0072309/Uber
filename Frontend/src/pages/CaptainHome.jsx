@@ -7,7 +7,21 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import carImg from "../assets/images/vehicles/car.png";
 import bikeImg from "../assets/images/vehicles/bike.png";
 import autoImg from "../assets/images/vehicles/auto.png";
-import { haversineKm, fetchRoute, ensureRouteLayer, setRouteOnMap, fitRouteBounds } from "../utils/route";
+import { haversineKm, fetchRoute, ensureRouteLayer, setRouteOnMap } from "../utils/route";
+
+/* Compass bearing (0-360, 0 = north) from point a to point b — used to
+   rotate the navigation arrow and swing the map so "forward" is always up,
+   the same way Google Maps' turn-by-turn view works. */
+function computeBearing(a, b) {
+    const toRad = (d) => (d * Math.PI) / 180;
+    const toDeg = (r) => (r * 180) / Math.PI;
+    const lat1 = toRad(a.lat);
+    const lat2 = toRad(b.lat);
+    const dLng = toRad(b.lng - a.lng);
+    const y = Math.sin(dLng) * Math.cos(lat2);
+    const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+    return (toDeg(Math.atan2(y, x)) + 360) % 360;
+}
 
 /* =========================================================================
    AXIOS INSTANCE — talks to your real backend (routes you shared).
@@ -230,6 +244,7 @@ const CaptainLiveMap = ({ isOnline, onLocationChange, targetCoords, onStats }) =
     const hasCenteredRef = useRef(false);
     const watchIdRef = useRef(null);
     const lastFixRef = useRef(null); // { lat, lng, ts } — for speed calc
+    const headingRef = useRef(0); // last known bearing, in degrees (0 = north)
     const lastRouteFetchRef = useRef(0);
 
     // ---- Map init (same 3D-buildings setup as Home.jsx) ----
@@ -275,16 +290,30 @@ const CaptainLiveMap = ({ isOnline, onLocationChange, targetCoords, onStats }) =
             ensureRouteLayer(map, { color: "#000000", width: 5 }); // black route line
         });
 
-        // Black dot + white ring + soft pulse — the captain's own live position.
+        // Navigation arrow — rotates to face the direction of travel, and
+        // stays flat against the 3D map plane (pitchAlignment: "map") the
+        // same way Google Maps' turn-by-turn puck behaves. No green top
+        // banner or any other chrome added — just the arrow + camera move.
         const el = document.createElement("div");
-        el.style.width = "22px";
-        el.style.height = "22px";
-        el.style.borderRadius = "50%";
-        el.style.background = "#000";
-        el.style.border = "3px solid #fff";
-        el.style.boxShadow = "0 0 0 6px rgba(0,0,0,0.15), 0 2px 8px rgba(0,0,0,0.35)";
+        el.style.width = "40px";
+        el.style.height = "40px";
+        el.style.display = "flex";
+        el.style.alignItems = "center";
+        el.style.justifyContent = "center";
+        el.innerHTML = `
+            <svg width="40" height="40" viewBox="0 0 40 40">
+                <path d="M20 3 L34 34 L20 27 L6 34 Z" fill="#0a0a0a" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round" />
+            </svg>
+        `;
 
-        markerRef.current = new maplibregl.Marker({ element: el }).setLngLat(DEFAULT_CENTER).addTo(map);
+        markerRef.current = new maplibregl.Marker({
+            element: el,
+            rotationAlignment: "map",
+            pitchAlignment: "map",
+        })
+            .setLngLat(DEFAULT_CENTER)
+            .setRotation(0)
+            .addTo(map);
         mapRef.current = map;
 
         return () => {
@@ -310,14 +339,54 @@ const CaptainLiveMap = ({ isOnline, onLocationChange, targetCoords, onStats }) =
 
         watchIdRef.current = navigator.geolocation.watchPosition(
             (pos) => {
-                const { latitude, longitude } = pos.coords;
+                const { latitude, longitude, heading } = pos.coords;
                 const here = { lat: latitude, lng: longitude };
+                const isNavigating = !!targetCoords;
 
-                if (markerRef.current) markerRef.current.setLngLat([longitude, latitude]);
+                // ---- Figure out which way the captain is actually facing ----
+                // Prefer the device's own compass heading when the browser
+                // gives us one; otherwise derive it from how far we've moved
+                // since the last fix (ignoring tiny GPS jitter while stopped).
+                let bearing = headingRef.current;
+                if (typeof heading === "number" && !Number.isNaN(heading)) {
+                    bearing = heading;
+                } else if (lastFixRef.current) {
+                    const movedMeters = haversineKm(lastFixRef.current, here) * 1000;
+                    if (movedMeters > 2) bearing = computeBearing(lastFixRef.current, here);
+                }
+                headingRef.current = bearing;
 
-                if (mapRef.current && !hasCenteredRef.current) {
-                    mapRef.current.flyTo({ center: [longitude, latitude], zoom: 16, duration: 800 });
-                    hasCenteredRef.current = true;
+                if (markerRef.current) {
+                    markerRef.current.setLngLat([longitude, latitude]);
+                    markerRef.current.setRotation(bearing);
+                }
+
+                if (mapRef.current) {
+                    if (!hasCenteredRef.current) {
+                        // First fix: snap straight there, already in the right mode.
+                        mapRef.current.jumpTo({
+                            center: [longitude, latitude],
+                            zoom: isNavigating ? 18 : 16,
+                            pitch: isNavigating ? 65 : 55,
+                            bearing: isNavigating ? bearing : -10,
+                        });
+                        hasCenteredRef.current = true;
+                    } else if (isNavigating) {
+                        // TURN-BY-TURN MODE: tight, tilted, camera rotates so
+                        // "forward" always points up the screen — like Google
+                        // Maps navigation. Smoothly eased so it doesn't jump.
+                        mapRef.current.easeTo({
+                            center: [longitude, latitude],
+                            bearing,
+                            pitch: 65,
+                            zoom: 18,
+                            duration: 700,
+                        });
+                    } else {
+                        // Idle (no active trip): just glide the camera along,
+                        // keep the calmer fixed-angle overview.
+                        mapRef.current.easeTo({ center: [longitude, latitude], duration: 700 });
+                    }
                 }
 
                 onLocationChange?.(latitude, longitude);
@@ -358,21 +427,25 @@ const CaptainLiveMap = ({ isOnline, onLocationChange, targetCoords, onStats }) =
                         }
                     }
 
-                    // Real road route, throttled to ~every 8s.
+                    // Real road route, throttled to ~every 8s. Camera framing
+                    // (fitRouteBounds) is skipped in nav mode — the turn-by-turn
+                    // follow-camera above already owns the zoom/bearing there.
                     if (now - lastRouteFetchRef.current > 8000) {
                         lastRouteFetchRef.current = now;
                         fetchRoute(here, targetCoords).then((route) => {
                             if (!route || !mapRef.current) return;
                             setRouteOnMap(mapRef.current, route.geometry);
-                            fitRouteBounds(mapRef.current, route.geometry, maplibregl);
                             onStats?.({ remainingKm: route.distanceKm, speedKmh });
                         });
                     }
-                } else if (targetMarkerRef.current) {
-                    targetMarkerRef.current.remove();
-                    targetMarkerRef.current = null;
-                    if (mapRef.current) setRouteOnMap(mapRef.current, null);
-                    lastRouteFetchRef.current = 0;
+                } else {
+                    lastFixRef.current = { ...here, ts: Date.now() };
+                    if (targetMarkerRef.current) {
+                        targetMarkerRef.current.remove();
+                        targetMarkerRef.current = null;
+                        if (mapRef.current) setRouteOnMap(mapRef.current, null);
+                        lastRouteFetchRef.current = 0;
+                    }
                 }
             },
             (err) => console.error("Geolocation error:", err),
@@ -443,7 +516,7 @@ const Sidebar = ({ isOpen, onClose, activeMenu, onNavigate, captain, onLogout })
                             <div>
                                 <p className="font-semibold text-base leading-tight">{displayName || "Captain"}</p>
                                 <p className="text-xs text-emerald-400 font-medium flex items-center gap-1 mt-1">
-                                    
+
                                 </p>
                             </div>
                         </button>
