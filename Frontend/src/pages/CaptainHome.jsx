@@ -654,7 +654,7 @@ const SwipeableRequestCard = ({ request, stackIndex, isExpanded, setIsExpanded, 
                 zIndex: 40,
                 touchAction: "pan-y",
             }}
-            className={`absolute bottom-0 left-0 w-full bg-white shadow-[0_-10px_36px_rgba(0,0,0,0.16)] flex flex-col justify-between transition-transform duration-200 ease-out md:max-w-sm md:left-1/2 md:-translate-x-1/2 md:bottom-6 md:rounded-3xl animate-[popUp_0.35s_ease-out] ${!isExpanded ? "cursor-grab active:cursor-grabbing rounded-t-3xl" : ""}`}
+            className={`absolute bottom-0 left-0 w-full bg-white shadow-[0_-10px_36px_rgba(0,0,0,0.16)] flex flex-col justify-between transition-transform duration-200 ease-out md:max-w-sm md:left-1/2 md:-translate-x-1/2 md:bottom-6 md:rounded-3xl lg:max-w-md animate-[popUp_0.35s_ease-out] ${!isExpanded ? "cursor-grab active:cursor-grabbing rounded-t-3xl" : ""}`}
         >
             {/* Swipe direction glows */}
             {!isExpanded && acceptGlow > 0 && (
@@ -947,7 +947,7 @@ const NavigationBar = ({ ride, remainingKm, speedKmh, isUpdating, onPickedPassen
     const phase = ride.status === "ongoing" ? "dropoff" : "pickup";
 
     return (
-        <div className="absolute bottom-0 left-0 w-full z-40 bg-white rounded-t-3xl shadow-[0_-10px_36px_rgba(0,0,0,0.16)] px-5 pt-4 pb-5 animate-[popUp_0.35s_ease-out]">
+        <div className="absolute bottom-0 left-0 w-full z-40 bg-white rounded-t-3xl shadow-[0_-10px_36px_rgba(0,0,0,0.16)] px-5 pt-4 pb-5 animate-[popUp_0.35s_ease-out] md:max-w-sm md:left-1/2 md:-translate-x-1/2 md:bottom-6 md:rounded-3xl lg:max-w-md">
             <div className="w-full flex justify-center mb-3">
                 <div className="w-10 h-1 bg-neutral-200 rounded-full" />
             </div>
@@ -1069,13 +1069,15 @@ const TripCompleteModal = ({ info, onClose }) => {
    ========================================================================= */
 const PageShell = ({ title, onBack, children }) => (
     <div className="h-screen w-screen bg-white overflow-y-auto">
-        <div className="sticky top-0 bg-white/95 backdrop-blur-sm flex items-center gap-4 px-5 py-4 z-10 shadow-[0_1px_0_rgba(0,0,0,0.06)]">
-            <button onClick={onBack} className="h-10 w-10 rounded-full bg-neutral-100 flex items-center justify-center active:scale-95 transition-all" aria-label="Back to map">
-                <ChevronRightIcon className="w-4 h-4 rotate-180" />
-            </button>
-            <h1 className="text-lg font-bold text-black tracking-tight">{title}</h1>
+        <div className="sticky top-0 bg-white/95 backdrop-blur-sm flex items-center gap-4 px-5 py-4 z-10 shadow-[0_1px_0_rgba(0,0,0,0.06)] lg:px-8">
+            <div className="flex items-center gap-4 w-full lg:max-w-2xl lg:mx-auto">
+                <button onClick={onBack} className="h-10 w-10 rounded-full bg-neutral-100 flex items-center justify-center active:scale-95 transition-all shrink-0" aria-label="Back to map">
+                    <ChevronRightIcon className="w-4 h-4 rotate-180" />
+                </button>
+                <h1 className="text-lg font-bold text-black tracking-tight">{title}</h1>
+            </div>
         </div>
-        <div className="p-5">{children}</div>
+        <div className="p-5 lg:max-w-2xl lg:mx-auto lg:px-8">{children}</div>
     </div>
 );
 
