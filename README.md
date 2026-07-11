@@ -25,31 +25,22 @@ Built with the **M.E.R.N** stack — real-time ride requests over Socket.IO, liv
 
 ## 📑 Table of Contents
 
-- [🚖 Ubar](#-ubar)
-    - [A production-ready, full-stack ride-booking application](#a-production-ready-full-stack-ride-booking-application)
-  - [📑 Table of Contents](#-table-of-contents)
-  - [📖 Overview](#-overview)
-  - [✨ Features](#-features)
-  - [🖼️ Screenshots](#️-screenshots)
-  - [🛠️ Tech Stack](#️-tech-stack)
-    - [Frontend](#frontend)
-    - [Backend](#backend)
-    - [Database](#database)
-    - [Maps \& Location](#maps--location)
-    - [Deployment \& Tools](#deployment--tools)
-  - [📁 Folder Structure](#-folder-structure)
-  - [⚙️ Installation](#️-installation)
-  - [🔑 Environment Variables](#-environment-variables)
-  - [📡 API Endpoints](#-api-endpoints)
-  - [🏗️ Architecture](#️-architecture)
-  - [🗄️ Database Collections](#️-database-collections)
-  - [🔐 Authentication](#-authentication)
-  - [🗺️ Maps \& Routing](#️-maps--routing)
-  - [🚀 Deployment](#-deployment)
-  - [🔮 Future Improvements](#-future-improvements)
-  - [👤 Author](#-author)
-    - [Tanvir Pathan](#tanvir-pathan)
-  - [📄 License](#-license)
+- [Overview](#-overview)
+- [Features](#-features)
+- [Tech Stack](#️-tech-stack)
+- [Concepts Implemented](#-concepts-implemented)
+- [Folder Structure](#-folder-structure)
+- [Installation](#️-installation)
+- [Environment Variables](#-environment-variables)
+- [API Endpoints](#-api-endpoints)
+- [Architecture](#️-architecture)
+- [Database](#️-database-collections)
+- [Authentication](#-authentication)
+- [Maps & Routing](#️-maps--routing)
+- [Deployment](#-deployment)
+- [Future Improvements](#-future-improvements)
+- [Author](#-author)
+- [License](#-license)
 
 ---
 
@@ -120,6 +111,26 @@ Ubar is a two-sided ride-hailing platform with completely separate, real-time ex
 ![Postman](https://img.shields.io/badge/Postman-FF6C37?style=flat-square&logo=postman&logoColor=white)
 ![VS Code](https://img.shields.io/badge/VS_Code-007ACC?style=flat-square&logo=visualstudiocode&logoColor=white)
 
+<sub>**Also:** MERN Stack &bull; REST APIs &bull; OpenRouteService API &bull; Context API &bull; MongoDB Compass</sub>
+
+---
+
+## 🧠 Concepts Implemented
+
+- Full Stack MERN Development
+- RESTful API Design
+- MVC Architecture
+- JWT-based Authentication & Authorization
+- Password Hashing
+- Protected Routes
+- Real-Time Communication with Socket.IO
+- Distance-based Fare Calculation
+- Geolocation & Route Calculation
+- Cloud Database Integration
+- Production Deployment
+- Environment Variable Management
+- Responsive UI Design
+
 ---
 
 ## 📁 Folder Structure
@@ -186,6 +197,7 @@ CLOUDINARY_API_SECRET=
 
 **Users**
 ```
+POST   /users/check-email
 POST   /users/register
 POST   /users/login
 GET    /users/profile
@@ -196,6 +208,8 @@ GET    /users/photo/:id
 
 **Captains**
 ```
+POST   /captains/check-email
+POST   /captains/check-plate
 POST   /captains/register
 POST   /captains/login
 GET    /captains/profile
