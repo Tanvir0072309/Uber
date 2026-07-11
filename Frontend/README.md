@@ -60,15 +60,3 @@ Inspired by elite-tier global mobility applications, the frontend relies on a hy
 * **Layout Grid:** Sophisticated spatial distributions built on explicit microscale padding schemes for effortless readability.
 
 ---
-
-## 📂 Getting Started
-
-### Prerequisites
-Make sure you have [Node.js](https://nodejs.org/) installed on your machine.
-
-### Installation & Local Setup
-
-1. **Clone the repository:**
-   ```bash
-   git clone [https://github.com/your-username/ubar-frontend.git](https://github.com/your-username/ubar-frontend.git)
-   cd ubar-frontend
