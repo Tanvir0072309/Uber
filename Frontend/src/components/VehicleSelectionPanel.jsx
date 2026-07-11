@@ -42,22 +42,24 @@ function distanceInKm(a, b) {
     return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
 }
 
-const VehicleSelectionPanel = ({ pickup, destination, pickupCoords, destinationCoords, userLocation, locationError, token, onSelect, onBack }) => {
+const VehicleSelectionPanel = ({ pickup, destination, pickupCoords, destinationCoords, token, onSelect, onBack }) => {
     const [captainsByType, setCaptainsByType] = useState({ car: [], motorcycle: [], auto: [] });
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState("");
 
-    // Real nearby-captains lookup, centered on the USER's current GPS
-    // position (not the typed pickup address) — "who's online near me right now".
+    // BUG FIX: this used to search around the user's own live GPS position,
+    // which could be far from the typed pickup address — so this preview
+    // list didn't match who the backend actually notifies on booking
+    // (which searches from pickupCoords). Both now use the same center.
     useEffect(() => {
-        if (!userLocation) return;
+        if (!pickupCoords) return;
 
         setLoading(true);
         setFetchError("");
 
         axios
             .get(`${import.meta.env.VITE_BASE_URL}/rides/nearby-captains`, {
-                params: { lat: userLocation.lat, lng: userLocation.lng },
+                params: { lat: pickupCoords.lat, lng: pickupCoords.lng },
                 headers: { Authorization: `Bearer ${token}` },
             })
             .then((res) => {
@@ -74,7 +76,7 @@ const VehicleSelectionPanel = ({ pickup, destination, pickupCoords, destinationC
                 setFetchError("Couldn't load nearby captains. Pull down to retry.");
             })
             .finally(() => setLoading(false));
-    }, [userLocation, token]);
+    }, [pickupCoords, token]);
 
     return (
         <div className="flex flex-col h-full min-h-0 animate-fade-in-up">
@@ -100,9 +102,9 @@ const VehicleSelectionPanel = ({ pickup, destination, pickupCoords, destinationC
                 {loading && <span className="text-[10px] text-neutral-500 animate-pulse font-semibold">Searching...</span>}
             </div>
 
-            {locationError && (
+            {!pickupCoords && (
                 <div className="mb-3 p-3 bg-amber-50 text-amber-700 rounded-xl text-xs border border-amber-100 font-medium shrink-0">
-                    {locationError}
+                    Pickup location missing — please go back and reselect it from the list.
                 </div>
             )}
             {fetchError && (

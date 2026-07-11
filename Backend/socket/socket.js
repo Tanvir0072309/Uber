@@ -77,8 +77,19 @@ function initializeSocket(server) {
             }
         });
 
-        socket.on('disconnect', () => {
+        socket.on('disconnect', async () => {
             console.log(`Socket disconnected: ${socket.id}`);
+            // BUG FIX: previously only an explicit "Go Offline" click set
+            // status='inactive'. If a captain just closes the tab, loses
+            // internet, or the app crashes, their status stayed 'active'
+            // forever with a stale location — so they kept showing up as
+            // "online nearby" even though they were long gone. Now, whoever
+            // still holds this exact socketId gets flipped offline too.
+            try {
+                await captainModel.updateOne({ socketId: socket.id }, { status: 'inactive' });
+            } catch (err) {
+                console.error('Socket disconnect cleanup error:', err.message);
+            }
         });
     });
 

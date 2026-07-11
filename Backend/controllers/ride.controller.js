@@ -94,7 +94,7 @@ module.exports.getNearbyCaptains = async (req, res, next) => {
         }
 
         const center = { lat: parseFloat(lat), lng: parseFloat(lng) };
-        const nearby = await rideService.findNearbyCaptains(center, 50000, vehicleType || undefined);
+        const nearby = await rideService.findNearbyCaptains(center, 10000, vehicleType || undefined);
 
         const captains = nearby.map(({ captain, distMeters }) => ({
             _id: captain._id,

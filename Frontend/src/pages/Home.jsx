@@ -627,8 +627,6 @@ const Home = () => {
                             destination={destination}
                             pickupCoords={pickupCoords}
                             destinationCoords={destinationCoords}
-                            userLocation={userLocation}
-                            locationError={locationError}
                             token={token}
                             onSelect={(vehicle) => {
                                 setSelectedVehicle(vehicle);
@@ -657,7 +655,7 @@ const Home = () => {
                         />
                     )}
 
-                    {currentStep === "ride-active" && (
+                    {currentStep === "ride-active" && completedRideFare == null && (
                         <div ref={rideContentRef} className="overflow-y-auto max-h-full">
                             <RideDetailsPanel
                                 ride={activeRide}

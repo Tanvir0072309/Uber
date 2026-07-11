@@ -48,7 +48,7 @@ module.exports.calculateFare = calculateFare;
  * isliye simple in-memory haversine filter use kar rahe hain — chhoti se
  * medium scale ke liye ye kaafi fast hai.
  */
-async function findNearbyCaptains(center, radiusMeters = 50000, vehicleType) {
+async function findNearbyCaptains(center, radiusMeters = 10000, vehicleType) {
     const query = {
         status: 'active',
         'location.lat': { $exists: true },
@@ -98,7 +98,7 @@ module.exports.createRide = async ({ userId, pickup, destination, pickupCoords, 
         status: 'pending'
     });
 
-    const nearby = await findNearbyCaptains(pickupCoords, 50000, vehicleType);
+    const nearby = await findNearbyCaptains(pickupCoords, 10000, vehicleType);
     const nearbyCaptains = nearby.map((n) => n.captain);
 
     return { ride, routeGeometry: null, nearbyCaptains };
