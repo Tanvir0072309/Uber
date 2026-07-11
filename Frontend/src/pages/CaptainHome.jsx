@@ -686,10 +686,6 @@ const SwipeableRequestCard = ({ request, stackIndex, isExpanded, setIsExpanded, 
                         <div className="flex items-center gap-3.5">
                             <div className="relative shrink-0">
                                 <img src={request.avatar} alt="" className="w-14 h-14 rounded-full object-cover bg-neutral-200" onError={(e) => { e.target.src = DEFAULT_AVATAR; }} />
-                                <div className="absolute -bottom-1 -right-1 bg-black text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5 border-2 border-white">
-                                    <span>4.9</span>
-                                    <StarIcon className="w-2.5 h-2.5 fill-amber-400 text-amber-400" />
-                                </div>
                             </div>
                             <div>
                                 <h4 className="font-bold text-black text-lg tracking-tight leading-tight">{request.passengerName}</h4>
@@ -746,7 +742,6 @@ const SwipeableRequestCard = ({ request, stackIndex, isExpanded, setIsExpanded, 
                                     <p className="text-neutral-400 text-xs font-medium">Passenger</p>
                                     <p className="font-bold text-black text-base flex items-center gap-1">
                                         {request.passengerName}
-                                        <span className="flex items-center gap-0.5 text-xs font-bold text-neutral-500 ml-1"><StarIcon className="w-3 h-3 fill-amber-400 text-amber-400" /> 4.9</span>
                                     </p>
                                 </div>
                             </div>
@@ -869,7 +864,6 @@ const AcceptedRideDetails = ({ ride, onCancel, onNavigate }) => (
                         <p className="text-neutral-400 text-xs font-medium">Passenger</p>
                         <p className="font-bold text-black text-base flex items-center gap-1 truncate">
                             {ride.passengerName}
-                            <span className="flex items-center gap-0.5 text-xs font-bold text-neutral-500 ml-1 shrink-0"><StarIcon className="w-3 h-3 fill-amber-400 text-amber-400" /> 4.9</span>
                         </p>
                     </div>
                 </div>

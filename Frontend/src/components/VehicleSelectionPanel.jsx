@@ -16,19 +16,12 @@ const BackIcon = () => (
     </svg>
 );
 
-/* Static per-type display info only — no fake drivers, prices, or ETAs here anymore. */
-const VEHICLE_TYPES = [
-    { id: "car", name: "UberGo", img: carImg, capacity: 4, desc: "Affordable, compact rides" },
-    { id: "motorcycle", name: "Moto", img: bikeImg, capacity: 1, desc: "Affordable motorcycle rides" },
-    { id: "auto", name: "UberAuto", img: autoImg, capacity: 3, desc: "Doorstep auto rides" },
-];
+const VEHICLE_IMAGES = { car: carImg, motorcycle: bikeImg, auto: autoImg };
+const VEHICLE_LABELS = { car: "UberGo", motorcycle: "Moto", auto: "UberAuto" };
+const VEHICLE_CAPACITY = { car: 4, motorcycle: 1, auto: 3 };
 
 const AVG_SPEED_KMPH = 25;
-const FARE_PER_KM = {
-    motorcycle: 6,
-    auto: 8,
-    car: 12,
-};
+const FARE_PER_KM = { motorcycle: 6, auto: 8, car: 12 };
 
 /* Same haversine formula the backend uses, so the estimate shown here
    matches the fare the server will actually charge. */
@@ -43,14 +36,15 @@ function distanceInKm(a, b) {
 }
 
 const VehicleSelectionPanel = ({ pickup, destination, pickupCoords, destinationCoords, token, onSelect, onBack }) => {
-    const [captainsByType, setCaptainsByType] = useState({ car: [], motorcycle: [], auto: [] });
+    // BUG FIX: this used to bucket captains into 3 fixed rows (Car/Moto/Auto)
+    // and only ever show the single nearest one per type — so 2 online cars
+    // collapsed into "1 UberGo" and picking it could notify EITHER of them.
+    // Now every individual online captain gets their own row, and selecting
+    // one targets that exact captain (via captainId sent to /rides/create).
+    const [captains, setCaptains] = useState([]);
     const [loading, setLoading] = useState(true);
     const [fetchError, setFetchError] = useState("");
 
-    // BUG FIX: this used to search around the user's own live GPS position,
-    // which could be far from the typed pickup address — so this preview
-    // list didn't match who the backend actually notifies on booking
-    // (which searches from pickupCoords). Both now use the same center.
     useEffect(() => {
         if (!pickupCoords) return;
 
@@ -63,13 +57,8 @@ const VehicleSelectionPanel = ({ pickup, destination, pickupCoords, destinationC
                 headers: { Authorization: `Bearer ${token}` },
             })
             .then((res) => {
-                const grouped = { car: [], motorcycle: [], auto: [] };
-                (res.data?.captains || []).forEach((c) => {
-                    const type = c.vehicle?.vehicleType;
-                    if (grouped[type]) grouped[type].push(c);
-                });
-                Object.keys(grouped).forEach((type) => grouped[type].sort((a, b) => a.distanceMeters - b.distanceMeters));
-                setCaptainsByType(grouped);
+                const list = [...(res.data?.captains || [])].sort((a, b) => a.distanceMeters - b.distanceMeters);
+                setCaptains(list);
             })
             .catch((err) => {
                 console.error("Nearby captains fetch error:", err);
@@ -77,6 +66,14 @@ const VehicleSelectionPanel = ({ pickup, destination, pickupCoords, destinationC
             })
             .finally(() => setLoading(false));
     }, [pickupCoords, token]);
+
+    const fareEstimate =
+        pickupCoords && destinationCoords
+            ? (() => {
+                const km = distanceInKm(pickupCoords, destinationCoords);
+                return { km };
+            })()
+            : null;
 
     return (
         <div className="flex flex-col h-full min-h-0 animate-fade-in-up">
@@ -98,7 +95,9 @@ const VehicleSelectionPanel = ({ pickup, destination, pickupCoords, destinationC
             </div>
 
             <div className="flex items-center justify-between mb-3 shrink-0">
-                <h3 className="text-[11px] font-bold uppercase tracking-widest text-neutral-400">Captains near you</h3>
+                <h3 className="text-[11px] font-bold uppercase tracking-widest text-neutral-400">
+                    {captains.length > 0 ? `${captains.length} captain${captains.length > 1 ? "s" : ""} online near you` : "Captains near you"}
+                </h3>
                 {loading && <span className="text-[10px] text-neutral-500 animate-pulse font-semibold">Searching...</span>}
             </div>
 
@@ -112,78 +111,66 @@ const VehicleSelectionPanel = ({ pickup, destination, pickupCoords, destinationC
                     {fetchError}
                 </div>
             )}
+            {!loading && !fetchError && captains.length === 0 && (
+                <div className="mb-3 p-4 bg-neutral-50 text-neutral-400 rounded-2xl text-xs font-medium shrink-0 text-center">
+                    No captains online near this pickup point right now.
+                </div>
+            )}
 
             <div className="flex flex-col gap-2.5 flex-1 min-h-0 overflow-y-auto no-scrollbar pb-1">
-                {VEHICLE_TYPES.map((type) => {
-                    const captains = captainsByType[type.id] || [];
-                    const nearest = captains[0];
-                    const available = captains.length > 0;
-                    const etaMin = nearest ? Math.max(1, Math.round((nearest.distanceMeters / 1000 / AVG_SPEED_KMPH) * 60)) : null;
-
-                    const specificFareEstimate =
-                        pickupCoords && destinationCoords
-                            ? (() => {
-                                const km = distanceInKm(pickupCoords, destinationCoords);
-                                const rate = FARE_PER_KM[type.id] || 0;
-                                return { km: km.toFixed(1), price: Math.round(km * rate) };
-                            })()
-                            : null;
+                {captains.map((captain) => {
+                    const type = captain.vehicle?.vehicleType || "car";
+                    const img = VEHICLE_IMAGES[type] || carImg;
+                    const label = VEHICLE_LABELS[type] || "Ride";
+                    const capacity = VEHICLE_CAPACITY[type] || 4;
+                    const etaMin = Math.max(1, Math.round((captain.distanceMeters / 1000 / AVG_SPEED_KMPH) * 60));
+                    const price = fareEstimate ? Math.round(fareEstimate.km * (FARE_PER_KM[type] || 0)) : null;
+                    const captainName = `${captain.fullname?.firstname || ""} ${captain.fullname?.lastname || ""}`.trim();
 
                     return (
                         <button
-                            key={type.id}
+                            key={captain._id}
                             type="button"
-                            disabled={!available}
                             onClick={() =>
-                                available &&
                                 onSelect({
-                                    vehicleType: type.id,
-                                    name: type.name,
-                                    img: type.img,
-                                    captain: nearest,
+                                    vehicleType: type,
+                                    name: label,
+                                    img,
+                                    captain,
                                     etaMin,
-                                    price: specificFareEstimate?.price,
-                                    distanceKm: specificFareEstimate?.km,
+                                    price,
+                                    distanceKm: fareEstimate?.km.toFixed(1),
                                 })
                             }
-                            className={`flex items-center justify-between p-4 border rounded-2xl transition-all duration-200 group text-left w-full shrink-0 ${available
-                                ? "bg-neutral-50 hover:bg-neutral-900 border-neutral-100 hover:border-neutral-900 active:scale-[0.99]"
-                                : "bg-neutral-50/50 border-neutral-100 opacity-50 cursor-not-allowed"
-                                }`}
+                            className="flex items-center justify-between p-4 border rounded-2xl transition-all duration-200 group text-left w-full shrink-0 bg-neutral-50 hover:bg-neutral-900 border-neutral-100 hover:border-neutral-900 active:scale-[0.99]"
                         >
                             <div className="flex items-center gap-4 min-w-0">
                                 <div className="w-16 h-12 flex items-center justify-center bg-white rounded-xl border border-neutral-100 shadow-sm p-1 shrink-0 group-hover:bg-neutral-800 transition-colors">
-                                    <img src={type.img} alt={type.name} className="w-full h-full object-contain" />
+                                    <img src={img} alt={label} className="w-full h-full object-contain" />
                                 </div>
                                 <div className="min-w-0">
                                     <div className="flex items-center gap-2">
-                                        <p className="font-bold text-neutral-900 group-hover:text-white text-sm tracking-tight transition-colors">
-                                            {type.name}
+                                        <p className="font-bold text-neutral-900 group-hover:text-white text-sm tracking-tight transition-colors truncate">
+                                            {captainName || label}
                                         </p>
-                                        <span className="inline-flex items-center gap-0.5 text-[10px] bg-neutral-200/70 group-hover:bg-neutral-800 px-1.5 py-0.5 rounded font-bold text-neutral-600 group-hover:text-neutral-300 transition-all">
+                                        <span className="inline-flex items-center gap-0.5 text-[10px] bg-neutral-200/70 group-hover:bg-neutral-800 px-1.5 py-0.5 rounded font-bold text-neutral-600 group-hover:text-neutral-300 transition-all shrink-0">
                                             <PersonIcon />
-                                            {type.capacity}
+                                            {capacity}
                                         </span>
                                     </div>
                                     <div className="flex items-center gap-1.5 mt-1">
-                                        {available ? (
-                                            <>
-                                                <p className="text-xs font-semibold text-emerald-600 group-hover:text-emerald-400 transition-colors">
-                                                    {etaMin} min away
-                                                </p>
-                                                <span className="text-neutral-300 group-hover:text-neutral-600">·</span>
-                                                <p className="text-xs text-neutral-400 group-hover:text-neutral-300 truncate transition-colors">
-                                                    {captains.length} nearby
-                                                </p>
-                                            </>
-                                        ) : (
-                                            <p className="text-xs text-neutral-400">No captains online nearby</p>
-                                        )}
+                                        <p className="text-xs font-semibold text-emerald-600 group-hover:text-emerald-400 transition-colors shrink-0">
+                                            {etaMin} min away
+                                        </p>
+                                        <span className="text-neutral-300 group-hover:text-neutral-600">·</span>
+                                        <p className="text-xs text-neutral-400 group-hover:text-neutral-300 truncate transition-colors capitalize">
+                                            {label} · {captain.vehicle?.color}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
                             <p className="text-base font-extrabold text-neutral-900 group-hover:text-white tracking-tight transition-colors ml-3 shrink-0">
-                                {available && specificFareEstimate ? `₹${specificFareEstimate.price}` : "—"}
+                                {price != null ? `₹${price}` : "—"}
                             </p>
                         </button>
                     );

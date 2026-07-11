@@ -474,6 +474,10 @@ const Home = () => {
                     pickupCoords,
                     destinationCoords,
                     vehicleType: selectedVehicle?.vehicleType || "car",
+                    // BUG FIX: without this, the backend broadcast the ride to
+                    // EVERY nearby captain of this vehicleType, regardless of
+                    // which specific one the user tapped in "Choose a ride".
+                    captainId: selectedVehicle?.captain?._id,
                 },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
@@ -482,8 +486,7 @@ const Home = () => {
             // notified. If this is 0, no one will ever accept — check the
             // console output below, and see the troubleshooting notes.
             console.log(
-                `[ride debug] ${res.data.nearbyCaptainsCount} captain(s) notified for vehicleType="${selectedVehicle?.vehicleType}" near`,
-                pickupCoords
+                `[ride debug] notified ${res.data.notifiedCaptainsCount}/${res.data.nearbyCaptainsCount} nearby captain(s) — targeted captainId=${selectedVehicle?.captain?._id || "none"}`
             );
             setCurrentStep("ride-active");
             setStepHeight("ride-active");

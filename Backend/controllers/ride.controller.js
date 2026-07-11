@@ -13,7 +13,7 @@ const { sendMessageToSocketId } = require('../socket/socket.js');
 // aur 500m ke andar jitne bhi online captains hain unko socket se ride bheji jaati hai.
 module.exports.createRide = async (req, res, next) => {
     try {
-        const { pickup, destination, pickupCoords, destinationCoords, vehicleType } = req.body;
+        const { pickup, destination, pickupCoords, destinationCoords, vehicleType, captainId } = req.body;
 
         if (!pickup || !destination || !pickupCoords || !destinationCoords) {
             return res.status(400).json({ message: 'pickup, destination aur unke coords zaroori hain.' });
@@ -28,16 +28,37 @@ module.exports.createRide = async (req, res, next) => {
             vehicleType
         });
 
+        // BUG FIX: pehle YE HAMESHA saare nearby+matching-vehicleType captains
+        // ko bhej deta tha, chahe user ne "choose a ride" list me ek specific
+        // car/captain hi kyun na select kiya ho. Ab agar frontend ek
+        // `captainId` bhejta hai (matlab user ne ek particular captain choose
+        // kiya), to sirf USI ek captain ko notify karo — baaki sabko chhodo.
+        let targetCaptains = nearbyCaptains;
+        if (captainId) {
+            targetCaptains = nearbyCaptains.filter((c) => String(c._id) === String(captainId));
+
+            // Edge case: agar wahi captain list fetch aur booking ke beech
+            // offline ho gaya ho ya list se hat gaya ho, phir bhi ek aakhri
+            // koshish — seedha DB se check karo.
+            if (targetCaptains.length === 0) {
+                const directCaptain = await captainModel.findById(captainId);
+                if (directCaptain && directCaptain.status === 'active') {
+                    targetCaptains = [directCaptain];
+                }
+            }
+        }
+
         // DEBUG: shows exactly why a captain might not get the popup —
         // either none matched the radius/vehicleType, or one matched but had
         // no live socketId (meaning their tab's socket 'join' never landed,
         // or their connection dropped). Remove these two lines once things
         // are working reliably.
-        console.log(`[ride debug] pickup=${JSON.stringify(pickupCoords)} vehicleType=${vehicleType || 'car'} -> ${nearbyCaptains.length} captain(s) matched`);
-        nearbyCaptains.forEach((c) => console.log(`  - ${c.fullname?.firstname} (${c._id}) status=${c.status} socketId=${c.socketId || 'MISSING'}`));
+        console.log(`[ride debug] pickup=${JSON.stringify(pickupCoords)} vehicleType=${vehicleType || 'car'} captainId=${captainId || 'none'} -> ${targetCaptains.length} captain(s) will be notified (of ${nearbyCaptains.length} nearby)`);
+        targetCaptains.forEach((c) => console.log(`  - ${c.fullname?.firstname} (${c._id}) status=${c.status} socketId=${c.socketId || 'MISSING'}`));
 
-        // Har nearby captain ke socket par naya ride request bhejo
-        nearbyCaptains.forEach((captain) => {
+        // Sirf targetCaptains ko hi socket se ride bhejo (ek specific captain
+        // select kiya ho to sirf wahi, warna sab nearby matching captains).
+        targetCaptains.forEach((captain) => {
             if (captain.socketId) {
                 sendMessageToSocketId(captain.socketId, {
                     event: 'new-ride',
@@ -61,7 +82,12 @@ module.exports.createRide = async (req, res, next) => {
         });
 
         const rideObj = ride.toObject();
-        res.status(201).json({ ride: rideObj, routeGeometry, nearbyCaptainsCount: nearbyCaptains.length });
+        res.status(201).json({
+            ride: rideObj,
+            routeGeometry,
+            nearbyCaptainsCount: nearbyCaptains.length,
+            notifiedCaptainsCount: targetCaptains.length,
+        });
     } catch (err) {
         next(err);
     }
